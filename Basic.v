@@ -14,7 +14,6 @@ From Coq Require Import Init.Nat.
 From Coq Require Import Arith.Arith.
 From Coq Require Import Arith.EqNat. Import Nat.
 From Coq Require Import Init.Datatypes.
-From Coq Require Import Logic.FunctionalExtensionality.
 From SymEx Require Import BinaryRelation.
 
 Inductive Expr : Type :=
