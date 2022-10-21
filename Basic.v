@@ -155,7 +155,7 @@ Proof. apply Rrefl. Qed.
 
 Example Sstep_true : (example_program, empty_sub (EVar "0"), PCTrue)
                       -->* (<{ skip }> , Y !-> (EVar "0"); X !-> (EVar "0"); _ !-> (EVar "0"), PCAnd PCTrue PCTrue).
-Proof. eapply Rtrans. eapply Rtrans. eapply Rtrans. apply Rrefl.
+Proof. eapply Rstep. eapply Rstep. eapply Rstep. apply Rrefl.
        apply Asgn_Sstep.
        apply IfTrue_Sstep.
        apply Asgn_Sstep.
