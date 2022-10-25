@@ -19,7 +19,8 @@ From Coq Require Import Arith.Arith.
 From Coq Require Import Arith.EqNat. Import Nat.
 From Coq Require Import Init.Datatypes.
 From Coq Require Import Logic.FunctionalExtensionality. (* for equality of substitutions *)
-From SymEx Require Import BinaryRelation.
+From Coq Require Import Relations.
+From Coq Require Import Wellfounded.Transitive_Closure.
 
 Inductive Aexpr : Type :=
 | AConst (n:nat)
@@ -82,7 +83,6 @@ Definition update {E:Type} (s: string -> E) (x:string) (e:E) : string -> E :=
   fun y => if String.eqb x y then e else s x.
 
 Notation "x '!->' v ';' m" := (update m x v) (at level 100, v at next level, right associativity).
-Notation " x '!->' v " := (update id_sub x v) (at level 100, v at next level, right associativity).
 
 Definition empty_map {A:Type} (x:A) : string -> A := fun _ => x.
 Notation "'_' '!->' v" := (empty_map v) (at level 100, right associativity).
@@ -166,37 +166,39 @@ Definition SConfig : Type := Stmt * sub * Bexpr.
 
 Reserved Notation " c '->s' c' " (at level 40).
 
-Inductive Sstep : Relation SConfig :=
+Inductive Sstep : relation SConfig :=
 | SAsgn_step : forall s x e sig phi,
     (<{ x := e ; s }>, sig , phi) ->s (s, (update sig x (Aapply sig e)), phi)
 | SIfTrue_step : forall b s1 s2 s sig phi,
     (<{ if b {s1} {s2} ; s }>, sig, phi) ->s (<{ s1 ; s }>, sig, BAnd phi (Bapply sig b))
 | SIfFalse_step : forall b s1 s2 s sig phi,
-    (<{ if b {s1} {s2} ; s }>, sig, phi) ->s (<{ s1 ; s }>, sig, BAnd phi (BNot (Bapply sig b)))
+    (<{ if b {s1} {s2} ; s }>, sig, phi) ->s (<{ s2 ; s }>, sig, BAnd phi (BNot (Bapply sig b)))
 | SWhileTrue_step : forall b s s' sig phi,
     (<{ while b {s} ; s' }>, sig, phi) ->s (<{ s ; while b {s} ; s' }>, sig, BAnd phi (Bapply sig b))
 | SWhileFalse_step : forall b s s' sig phi,
     (<{ while b {s} ; s' }>, sig, phi) ->s (<{ s' }>, sig, BAnd phi (BNot (Bapply sig b)))
   where " c '->s' c' " := (Sstep c c').
 
-Definition multi_Sstep := Trans_Ref_Closure Sstep.
+Definition multi_Sstep := clos_refl_trans _ Sstep.
 Notation " c '->*' c' " := (multi_Sstep c c') (at level 40).
 
 Example example_program : Stmt := <{ while (X <= 2) { X := X + 1 } ; Y := 1 }>.
 Example Sexample_run : (example_program, id_sub, BTrue)
-                        ->* (<{ Y := 1 }>, (X !-> <{X + 1 + 1}> ; X !-> <{X + 1}> ),
+                        ->* (<{ Y := 1 }>, (X !-> <{X + 1 + 1}> ; X !-> <{X + 1}> ; id_sub ),
                        <{ BTrue && X <= 2 && X + 1 <= 2 && ~ (X + 1 + 1 <= 2) }>).
-Proof. eapply Rstep. eapply Rstep. eapply Rstep. eapply Rstep. eapply Rstep. apply Rrefl.
-       apply SWhileTrue_step. apply SAsgn_step.
-       apply SWhileTrue_step. apply SAsgn_step.
-       apply SWhileFalse_step.
+Proof. eapply rt_trans. eapply rt_trans. eapply rt_trans. eapply rt_trans. eapply rt_trans. apply rt_refl.
+       apply rt_step. apply SWhileTrue_step.
+       apply rt_step. apply SAsgn_step.
+       apply rt_step. apply SWhileTrue_step.
+       apply rt_step. apply SAsgn_step.
+       apply rt_step. apply SWhileFalse_step.
 Qed.
 
 Definition CConfig : Type := Stmt * Valuation.
 
 Reserved Notation " c '=>c' c'" (at level 40).
 
-Inductive Cstep : Relation CConfig :=
+Inductive Cstep : relation CConfig :=
 | CAsgn_step : forall s x e V,
     (<{ x := e ; s }>, V) =>c (s, update V x (Aeval V e))
 | CIfTrue_step : forall b s1 s2 s V,
@@ -213,42 +215,49 @@ Inductive Cstep : Relation CConfig :=
     (<{ while b {s} ; s' }>, V) =>c (s' , V)
 where " c '=>c' c'" := (Cstep c c').
 
-Definition multi_Cstep := Trans_Ref_Closure Cstep.
+Definition multi_Cstep := clos_refl_trans _ Cstep.
 Notation " c '=>*' c' " := (multi_Cstep c c') (at level 40).
 
 Example example_V : Valuation := (_ !-> 1).
 Example Cexample_run : (example_program, example_V) =>* (<{ Y := 1 }>, (X !-> 3 ; X !-> 2 ; example_V)).
-Proof. eapply Rstep. eapply Rstep. eapply Rstep. eapply Rstep. eapply Rstep. apply Rrefl.
-       apply CWhileTrue_step. reflexivity.
-       apply CAsgn_step.
-       apply CWhileTrue_step. reflexivity.
-       apply CAsgn_step.
-       apply CWhileFalse_step. reflexivity.
+Proof. eapply rt_trans. eapply rt_trans. eapply rt_trans. eapply rt_trans. eapply rt_trans. apply rt_refl.
+       apply rt_step. apply CWhileTrue_step. reflexivity.
+       apply rt_step. apply CAsgn_step.
+       apply rt_step. apply CWhileTrue_step. reflexivity.
+       apply rt_step. apply CAsgn_step.
+       apply rt_step. apply CWhileFalse_step. reflexivity.
 Qed.
 
-Lemma Sstep_end : forall c c',
-    c ->* c' ->
-    c = c' \/ exists c'', c ->* c'' /\ c'' ->s c'.
-Proof.
-  intros.
-  induction H.
-  - left. reflexivity.
-  - destruct IHTrans_Ref_Closure; right.
-    + exists y. rewrite H1. split.
-      * apply Rrefl.
-      * assumption.
-    + destruct H1 as [y' [Hcomp Hstep]].
-      exists y. split.
-      * apply Rstep with (y := y'); assumption.
-      * assumption.
-Qed.
-
-Lemma Cstep_combine : forall x y z,
-    x =>* y -> y =>c z -> x =>* z.
-Proof. intros. apply Rstep with (y := y); assumption. Qed.
+Lemma comp_is_update : forall V x e,
+    update V x (Aeval V e) = Comp V (update id_sub x e).
+Proof. intros. extensionality y. destruct (x =? y)%string. Admitted.
 
 Theorem correctness : forall S S' sig phi V,
     (S, id_sub, BTrue) ->* (S', sig, phi) ->
     Beval V phi = true ->
     (S, V) =>* (S', Comp V sig).
-Proof.
+Proof. intros. remember (S, id_sub, BTrue) as config0. remember (S', sig, phi) as config1.
+       induction H.
+       (* rt_step *)
+       - inversion H; subst; inversion H1; inversion H2; subst;
+           try (rewrite Bapply_id in *).
+         + eapply rt_trans. apply rt_refl. apply rt_step.
+           rewrite <- comp_is_update.
+           rewrite Aapply_id.
+           apply CAsgn_step.
+         + eapply rt_trans. apply rt_refl. apply rt_step.
+           apply CIfTrue_step. inversion H0. reflexivity.
+         + eapply rt_trans. apply rt_refl. apply rt_step.
+           apply CIfFalse_step. inversion H0. apply negb_true_iff in H4. assumption.
+         + eapply rt_trans. apply rt_refl. apply rt_step.
+           apply CWhileTrue_step. inversion H0. rewrite comp_id. reflexivity.
+         + eapply rt_trans. apply rt_refl. apply rt_step.
+           apply CWhileFalse_step. rewrite comp_id. inversion H0.
+           apply negb_true_iff in H4. assumption.
+        (* rt_refl *)
+        - inversion Heqconfig1; subst. inversion H; subst.
+          apply rt_refl.
+        (* rt_trans *)
+        - rewrite Heqconfig0 in *. rewrite Heqconfig1 in *.
+          inversion H; subst; inversion H1; subst.
+          +
