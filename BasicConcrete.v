@@ -259,5 +259,3 @@ Proof. intros. remember (S, id_sub, BTrue) as config0. remember (S', sig, phi) a
           apply rt_refl.
         (* rt_trans *)
         - rewrite Heqconfig0 in *. rewrite Heqconfig1 in *.
-          inversion H; subst; inversion H1; subst.
-          +
