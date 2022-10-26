@@ -19,6 +19,7 @@ From Coq Require Import Arith.Arith.
 From Coq Require Import Arith.EqNat. Import Nat.
 From Coq Require Import Init.Datatypes.
 From Coq Require Import Logic.FunctionalExtensionality. (* for equality of substitutions *)
+From Coq Require Import Program.   (* for `dependent induction` *)
 From Coq Require Import Relations.
 
 Inductive Aexpr : Type :=
@@ -272,59 +273,29 @@ Theorem correctness : forall S S' sig phi V,
     (S, id_sub, BTrue) ->* (S', sig, phi) ->
     Beval V phi = true ->
     (S, V) =>* (S', Comp V sig).
-Proof. intros. remember (S', sig, phi) as config1.
-       induction H.
-       - (* rtn1_refl *) inversion Heqconfig1; subst.
-         rewrite comp_id. apply rtn1_refl.
-       - (* rtn1_trans *) destruct H; inversion Heqconfig1; subst.
-         + (* seq *) eapply Relation_Operators.rtn1_trans.
-           * apply CSeq_step. inversion H; subst.
-         + (* asgn *) eapply Relation_Operators.rtn1_trans.
+Proof. intros. dependent induction H.
+       - rewrite comp_id. constructor.
+       - dependent destruction H.
+         + (* seq *) admit.
+         + eapply Relation_Operators.rtn1_trans.
            * rewrite asgn_sound. apply CAsgn_step.
-           * inversion H1; subst. rewrite comp_id. constructor.
-             admit.
-         + (* ifTrue *) eapply Relation_Operators.rtn1_trans.
-           * apply CIfTrue_step. rewrite comp_subB. inversion H0.
-             rewrite H2. apply andb_true_iff in H2. destruct H2. apply H2.
-           * admit.
-         + (* ifFalse *) eapply Relation_Operators.rtn1_trans.
-           * apply CIfFalse_step. rewrite comp_subB. inversion H0.
-             apply andb_true_iff in H2. destruct H2. apply negb_true_iff in H2.
-             apply H2.
-           * admit.
-             +
-
-         + (* seq *) eapply Relation_Operators.rtn1_trans.
-           * inversion H1; subst.
-
-
-       - destruct H1; subst; try (rewrite Bapply_id in *).
-          + inversion H; subst; econstructor;
-             try (rewrite Bapply_id in *);
-                  try (rewrite comp_id);
-                  try (rewrite Aapply_id);
-                  try (apply rtn1_refl).
-           * rewrite <- comp_is_update. apply CAsgn_step.
-           * apply CIfTrue_step. inversion H0. reflexivity.
-           * apply CIfFalse_step. inversion H0.
-             apply negb_true_iff in H2. apply H2.
-           * apply CWhileTrue_step. inversion H0. reflexivity.
-           * apply CWhileFalse_step. inversion H0.
-             apply negb_true_iff in H2. apply H2.
-          (* trans *)
-             + admit.
+           * eapply IHclos_refl_trans_n1; try reflexivity; try assumption.
+         + eapply Relation_Operators.rtn1_trans.
+           * apply CIfTrue_step. inversion H1. rewrite H2.
+             apply andb_true_iff in H2. auto. destruct H2. rewrite comp_subB. apply H2.
+           * eapply IHclos_refl_trans_n1; try reflexivity.
+             apply andb_true_iff in H1. destruct H1. apply H.
+         + eapply Relation_Operators.rtn1_trans.
+           * apply CIfFalse_step. inversion H1. apply andb_true_iff in H2. destruct H2.
+             apply negb_true_iff in H2. rewrite comp_subB. apply H2.
+           * eapply IHclos_refl_trans_n1; try reflexivity.
+             inversion H1. rewrite H2. apply andb_true_iff in H2. destruct H2. apply H.
+         + eapply Relation_Operators.rtn1_trans.
+           * apply CWhileTrue_step. inversion H1. rewrite H2.
+             apply andb_true_iff in H2. destruct H2. rewrite comp_subB. apply H2.
+           * eapply IHclos_refl_trans_n1; try reflexivity. inversion H1. rewrite H2.
+             apply andb_true_iff in H2. destruct H2. apply H.
+         + eapply Relation_Operators.rtn1_trans.
+           * apply CWhileFalse_step. inversion H1. apply andb_true_iff in H2. destruct H2.
+             apply negb_true_iff in H2. rewrite comp_subB. apply H2.
 Admitted.
-(* these admits should be the induction hypothesis, not sure how to make that happen *)
-
-Theorem completeness : forall S S' V V0,
-    (S, V0) =>* (S', V) ->
-    exists sig phi,
-      (S, id_sub, BTrue) ->* (S, sig, phi) /\ Beval V0 phi = true /\ V = Comp V0 sig.
-Proof.
-  intros. remember (S, V0) as conf0. remember (S', V) as conf1.
-  induction H.
-  - eexists. eexists. repeat split.
-    + apply rtn1_refl.
-    + reflexivity.
-    + rewrite comp_id. inversion Heqconf1; subst; inversion H; subst. reflexivity.
-  - destruct H.
