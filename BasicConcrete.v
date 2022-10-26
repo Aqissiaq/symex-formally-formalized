@@ -191,31 +191,31 @@ Inductive Sstep : relation SConfig :=
 Definition multi_Sstep := clos_refl_trans_n1 _ Sstep.
 Notation " c '->*' c' " := (multi_Sstep c c') (at level 40).
 
-(* Example example_program : Stmt := <{ while (X <= 2) { X := X + 1 } }>. *)
-(* Example Sexample_run : (example_program, id_sub, BTrue) *)
-(*                         ->* (<{ skip }>, (X !-> <{X + 1 + 1}> ; X !-> <{X + 1}> ; id_sub ), *)
-(*                        <{ BTrue && X <= 2 && X + 1 <= 2 && ~ (X + 1 + 1 <= 2) }>). *)
-(* Proof. *)
-(*   assert (step1 : (example_program, id_sub, BTrue) *)
-(*                   ->s (<{ X := X + 1 ; example_program }>, id_sub, <{ BTrue && X <= 2 }>)) by apply SWhileTrue_step. *)
-(*   assert (step2 : (<{ X := X + 1 ; example_program }>, id_sub, <{ BTrue && X <= 2 }>) *)
-(*                   ->s (example_program, (X !-> <{ X + 1 }> ; id_sub), <{ BTrue && X <= 2 }>)) by (eapply SSeq_step; apply SAsgn_step). *)
-(*   assert (step3 : (example_program, (X !-> <{ X + 1 }> ; id_sub), <{ BTrue && X <= 2 }>) *)
-(*                   ->s (<{ X := X + 1 ; example_program }>, (X !-> <{ X + 1 }> ; id_sub), <{ BTrue && X <= 2 && X + 1 <= 2 }>)) *)
-(*     by apply SWhileTrue_step. *)
-(*   assert (step4 : (<{ X := X + 1 ; example_program }>, (X !-> <{ X + 1 }> ; id_sub), <{ BTrue && X <= 2 && X + 1 <= 2 }>) *)
-(*                   ->s (example_program, (X !-> <{X + 1 + 1}> ; X !-> <{X + 1}> ; id_sub), <{ BTrue && X <= 2 && X + 1 <= 2 }>)) *)
-(*     by (eapply SSeq_step; apply SAsgn_step). *)
-(*   assert (step5 : (example_program, (X !-> <{X + 1 + 1}> ; X !-> <{X + 1}> ; id_sub), <{ BTrue && X <= 2 && X + 1 <= 2 }>) *)
-(*                   ->s (<{ skip }>, (X !-> <{X + 1 + 1}> ; X !-> <{X + 1}> ; id_sub ), <{ BTrue && X <= 2 && X + 1 <= 2 && ~ (X + 1 + 1 <= 2) }>)) *)
-(*     by (apply SWhileFalse_step). *)
-(*   eapply Relation_Operators.rtn1_trans. apply step5. *)
-(*   eapply Relation_Operators.rtn1_trans. apply step4. *)
-(*   eapply Relation_Operators.rtn1_trans. apply step3. *)
-(*   eapply Relation_Operators.rtn1_trans. apply step2. *)
-(*   eapply Relation_Operators.rtn1_trans. apply step1. *)
-(*   apply rtn1_refl. *)
-(* Qed. *)
+Example example_program : Stmt := <{ while (X <= 2) { X := X + 1 } ; Y := 1 }>.
+Example Sexample_run : (example_program, id_sub, BTrue)
+                        ->* (<{ Y := 1 }>, (X !-> <{X + 1 + 1}> ; X !-> <{X + 1}> ; id_sub ),
+                       <{ BTrue && X <= 2 && X + 1 <= 2 && ~ (X + 1 + 1 <= 2) }>).
+Proof.
+  assert (step1 : (example_program, id_sub, BTrue)
+                  ->s (<{ X := X + 1 ; example_program }>, id_sub, <{ BTrue && X <= 2 }>)) by apply SWhileTrue_step.
+  assert (step2 : (<{ X := X + 1 ; example_program }>, id_sub, <{ BTrue && X <= 2 }>)
+                  ->s (example_program, (X !-> <{ X + 1 }> ; id_sub), <{ BTrue && X <= 2 }>)) by (apply SAsgn_step).
+  assert (step3 : (example_program, (X !-> <{ X + 1 }> ; id_sub), <{ BTrue && X <= 2 }>)
+                  ->s (<{ X := X + 1 ; example_program }>, (X !-> <{ X + 1 }> ; id_sub), <{ BTrue && X <= 2 && X + 1 <= 2 }>))
+    by apply SWhileTrue_step.
+  assert (step4 : (<{ X := X + 1 ; example_program }>, (X !-> <{ X + 1 }> ; id_sub), <{ BTrue && X <= 2 && X + 1 <= 2 }>)
+                  ->s (example_program, (X !-> <{X + 1 + 1}> ; X !-> <{X + 1}> ; id_sub), <{ BTrue && X <= 2 && X + 1 <= 2 }>))
+    by (apply SAsgn_step).
+  assert (step5 : (example_program, (X !-> <{X + 1 + 1}> ; X !-> <{X + 1}> ; id_sub), <{ BTrue && X <= 2 && X + 1 <= 2 }>)
+                  ->s (<{ Y := 1 }>, (X !-> <{X + 1 + 1}> ; X !-> <{X + 1}> ; id_sub ), <{ BTrue && X <= 2 && X + 1 <= 2 && ~ (X + 1 + 1 <= 2) }>))
+    by (apply SWhileFalse_step).
+  eapply Relation_Operators.rtn1_trans. apply step5.
+  eapply Relation_Operators.rtn1_trans. apply step4.
+  eapply Relation_Operators.rtn1_trans. apply step3.
+  eapply Relation_Operators.rtn1_trans. apply step2.
+  eapply Relation_Operators.rtn1_trans. apply step1.
+  apply rtn1_refl.
+Qed.
 
 Definition CConfig : Type := Stmt * Valuation.
 
@@ -241,25 +241,25 @@ where " c '=>c' c'" := (Cstep c c').
 Definition multi_Cstep := clos_refl_trans_n1 _ Cstep.
 Notation " c '=>*' c' " := (multi_Cstep c c') (at level 40).
 
-(* Example example_V : Valuation := (_ !-> 1). *)
-(* Example Cexample_run : (example_program, example_V) =>* (<{ skip }>, (X !-> 3 ; X !-> 2 ; example_V)). *)
-(* Proof. *)
-(*   assert (step1 : (example_program, example_V) =>c (<{ X := X + 1 ; example_program }>, example_V)) *)
-(*     by (apply CWhileTrue_step; auto). *)
-(*   assert (step2 : (<{ X := X + 1 ; example_program }>, example_V) =>c (example_program, (X !-> 2 ; example_V))) *)
-(*     by (apply CSeq_step; apply CAsgn_step). *)
-(*   assert (step3 : (example_program, (X !-> 2 ; example_V)) =>c (<{ X := X + 1 ; example_program }>, (X !-> 2 ; example_V))) *)
-(*     by (apply CWhileTrue_step; auto). *)
-(*   assert (step4 : (<{ X := X + 1 ; example_program }>, (X !-> 2 ; example_V)) *)
-(*           =>c (example_program, (X !-> 3 ; X !-> 2 ; example_V))) by (apply CSeq_step; apply CAsgn_step). *)
+Example example_V : Valuation := (_ !-> 1).
+Example Cexample_run : (example_program, example_V) =>* (<{ Y := 1 }>, (X !-> 3 ; X !-> 2 ; example_V)).
+Proof.
+  assert (step1 : (example_program, example_V) =>c (<{ X := X + 1 ; example_program }>, example_V))
+    by (apply CWhileTrue_step; auto).
+  assert (step2 : (<{ X := X + 1 ; example_program }>, example_V) =>c (example_program, (X !-> 2 ; example_V)))
+    by (apply CAsgn_step).
+  assert (step3 : (example_program, (X !-> 2 ; example_V)) =>c (<{ X := X + 1 ; example_program }>, (X !-> 2 ; example_V)))
+    by (apply CWhileTrue_step; auto).
+  assert (step4 : (<{ X := X + 1 ; example_program }>, (X !-> 2 ; example_V))
+          =>c (example_program, (X !-> 3 ; X !-> 2 ; example_V))) by (apply CAsgn_step).
 
-(*   eapply Relation_Operators.rtn1_trans. apply CWhileFalse_step with (b := <{X <= 2}>). reflexivity. *)
-(*   eapply Relation_Operators.rtn1_trans. apply step4. *)
-(*   eapply Relation_Operators.rtn1_trans. apply step3. *)
-(*   eapply Relation_Operators.rtn1_trans. apply step2. *)
-(*   eapply Relation_Operators.rtn1_trans. apply step1. *)
-(*   apply rtn1_refl. *)
-(* Qed. *)
+  eapply Relation_Operators.rtn1_trans. apply CWhileFalse_step with (b := <{X <= 2}>). reflexivity.
+  eapply Relation_Operators.rtn1_trans. apply step4.
+  eapply Relation_Operators.rtn1_trans. apply step3.
+  eapply Relation_Operators.rtn1_trans. apply step2.
+  eapply Relation_Operators.rtn1_trans. apply step1.
+  apply rtn1_refl.
+Qed.
 
 Theorem correctness : forall S S' sig phi V,
     (S, id_sub, BTrue) ->* (S', sig, phi) ->
@@ -291,4 +291,81 @@ Proof. intros. dependent induction H.
              apply negb_true_iff in H2. rewrite comp_subB. apply H2.
            * eapply IHclos_refl_trans_n1; try reflexivity. inversion H1. rewrite H2.
              apply andb_true_iff in H2. destruct H2. apply H.
+Qed.
+
+(* concise (but not very readable) proof *)
+Theorem correctness' : forall S S' sig phi V,
+    (S, id_sub, BTrue) ->* (S', sig, phi) ->
+    Beval V phi = true ->
+    (S, V) =>* (S', Comp V sig).
+Proof. intros. dependent induction H.
+       - rewrite comp_id. constructor.
+       - dependent destruction H; eapply Relation_Operators.rtn1_trans;
+           (* solves the =>* case *)
+           try (eapply IHclos_refl_trans_n1; try reflexivity; try assumption;
+               apply andb_true_iff in H1; destruct H1; apply H);
+           (* apply a step *)
+           try (rewrite asgn_sound);
+           try constructor;
+           (* solves the preconditions for if/while *)
+           try (inversion H1; try (rewrite H2); apply andb_true_iff in H2; destruct H2;
+             try (apply negb_true_iff in H2); rewrite comp_subB; apply H2).
+Qed.
+
+Theorem completeness : forall S S' V0 V,
+    (S, V0) =>* (S', V) ->
+    exists sig phi, (S, id_sub, BTrue) ->* (S', sig, phi).
+Proof.
+  intros. dependent induction H.
+  - exists id_sub. exists BTrue. apply rtn1_refl.
+  - dependent destruction H.
+    + assert (exists sig phi, (S, id_sub, BTrue) ->* (<{ x := e ; S' }>, sig, phi)). {
+        eapply IHclos_refl_trans_n1; reflexivity.}
+      destruct H as [sig [phi comp]].
+      eexists. eexists. eapply Relation_Operators.rtn1_trans.
+      * apply SAsgn_step.
+      * apply comp.
+    + assert (exists sig phi, (S, id_sub, BTrue) ->* (<{ if b {s1}{s2} ; s }>, sig, phi)). {
+        eapply IHclos_refl_trans_n1; reflexivity.}
+      destruct H1 as [sig [phi comp]].
+      eexists. eexists. eapply Relation_Operators.rtn1_trans.
+      * apply SIfTrue_step.
+      * apply comp.
+    + assert (exists sig phi, (S, id_sub, BTrue) ->* (<{ if b {s1}{s2} ; s }>, sig, phi)). {
+        eapply IHclos_refl_trans_n1; reflexivity.}
+      destruct H1 as [sig [phi comp]].
+      eexists. eexists. eapply Relation_Operators.rtn1_trans.
+      * apply SIfFalse_step.
+      * apply comp.
+    + assert (exists sig phi, (S, id_sub, BTrue) ->* (<{ while b {s} ; s' }>, sig, phi)). {
+        eapply IHclos_refl_trans_n1; reflexivity.}
+      destruct H1 as [sig [phi comp]].
+      eexists. eexists. eapply Relation_Operators.rtn1_trans.
+      * apply SWhileTrue_step.
+      * apply comp.
+    + assert (exists sig phi, (S, id_sub, BTrue) ->* (<{ while b {s} ; S' }>, sig, phi)). {
+        eapply IHclos_refl_trans_n1; reflexivity.}
+      destruct H1 as [sig [phi comp]].
+      eexists. eexists. eapply Relation_Operators.rtn1_trans.
+      * apply SWhileFalse_step.
+      * apply comp.
+Qed.
+
+(* another concise, but unreadable proof *)
+Theorem completeness' : forall S S' V0 V,
+    (S, V0) =>* (S', V) ->
+    exists sig phi, (S, id_sub, BTrue) ->* (S', sig, phi).
+Proof.
+  intros. dependent induction H.
+  - exists id_sub. exists BTrue. apply rtn1_refl.
+  - dependent destruction H;
+    try (assert (exists sig phi, (S, id_sub, BTrue) ->* (<{ x := e ; S' }>, sig, phi)) by (eapply IHclos_refl_trans_n1; reflexivity));
+    try (assert (exists sig phi, (S, id_sub, BTrue) ->* (<{ if b {s1}{s2} ; s }>, sig, phi)) by (eapply IHclos_refl_trans_n1; reflexivity));
+    try (assert (exists sig phi, (S, id_sub, BTrue) ->* (<{ while b {s} ; s' }>, sig, phi)) by (eapply IHclos_refl_trans_n1; reflexivity));
+    try (assert (exists sig phi, (S, id_sub, BTrue) ->* (<{ while b {s} ; S' }>, sig, phi)) by (eapply IHclos_refl_trans_n1; reflexivity));
+      (* this is annoying, but naming messes it up *)
+      try (destruct H as [sig [phi comp]]);
+      try (destruct H1 as [sig [phi comp]]);
+      eexists; eexists; eapply Relation_Operators.rtn1_trans;
+      try (apply comp); try constructor.
 Qed.
