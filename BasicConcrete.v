@@ -312,46 +312,68 @@ Proof. intros. dependent induction H.
              try (apply negb_true_iff in H2); rewrite comp_subB; apply H2).
 Qed.
 
+Ltac splits := repeat (try split).
+
 Theorem completeness : forall S S' V0 V,
     (S, V0) =>* (S', V) ->
-    exists sig phi, (S, id_sub, BTrue) ->* (S', sig, phi).
+    exists sig phi, (S, id_sub, BTrue) ->* (S', sig, phi) /\ Beval V0 phi = true /\ V = Comp V0 sig.
 Proof.
   intros. dependent induction H.
-  - exists id_sub. exists BTrue. apply rtn1_refl.
+  - exists id_sub. exists BTrue. splits.
+    + apply rtn1_refl.
   - dependent destruction H.
-    + assert (exists sig phi, (S, id_sub, BTrue) ->* (<{ x := e ; S' }>, sig, phi)). {
-        eapply IHclos_refl_trans_n1; reflexivity.}
-      destruct H as [sig [phi comp]].
-      eexists. eexists. eapply Relation_Operators.rtn1_trans.
-      * apply SAsgn_step.
-      * apply comp.
-    + assert (exists sig phi, (S, id_sub, BTrue) ->* (<{ if b {s1}{s2} ; s }>, sig, phi)). {
-        eapply IHclos_refl_trans_n1; reflexivity.}
-      destruct H1 as [sig [phi comp]].
-      eexists. eexists. eapply Relation_Operators.rtn1_trans.
-      * apply SIfTrue_step.
-      * apply comp.
-    + assert (exists sig phi, (S, id_sub, BTrue) ->* (<{ if b {s1}{s2} ; s }>, sig, phi)). {
-        eapply IHclos_refl_trans_n1; reflexivity.}
-      destruct H1 as [sig [phi comp]].
-      eexists. eexists. eapply Relation_Operators.rtn1_trans.
-      * apply SIfFalse_step.
-      * apply comp.
-    + assert (exists sig phi, (S, id_sub, BTrue) ->* (<{ while b {s} ; s' }>, sig, phi)). {
-        eapply IHclos_refl_trans_n1; reflexivity.}
-      destruct H1 as [sig [phi comp]].
-      eexists. eexists. eapply Relation_Operators.rtn1_trans.
-      * apply SWhileTrue_step.
-      * apply comp.
-    + assert (exists sig phi, (S, id_sub, BTrue) ->* (<{ while b {s} ; S' }>, sig, phi)). {
-        eapply IHclos_refl_trans_n1; reflexivity.}
-      destruct H1 as [sig [phi comp]].
-      eexists. eexists. eapply Relation_Operators.rtn1_trans.
-      * apply SWhileFalse_step.
-      * apply comp.
+    + assert (IH : exists sig phi, (S, id_sub, BTrue) ->* (<{ x := e ; S' }>, sig, phi)
+                         /\ Beval V0 phi = true
+                         /\ V1 = Comp V0 sig) by (eapply IHclos_refl_trans_n1; reflexivity).
+      destruct IH as [sig [phi [comp [val upd]]]].
+      eexists. eexists. splits.
+      * eapply Relation_Operators.rtn1_trans.
+        apply SAsgn_step. apply comp.
+      * assumption.
+      * rewrite upd. rewrite asgn_sound. rewrite comp_sub. reflexivity.
+    + assert (IH : exists sig phi, (S, id_sub, BTrue) ->* (<{ if b {s1} {s2} ; s }>, sig, phi)
+                         /\ Beval V0 phi = true
+                         /\ V = Comp V0 sig) by (eapply IHclos_refl_trans_n1; reflexivity).
+      destruct IH as [sig [phi [comp [val upd]]]].
+      eexists. eexists. splits.
+      * eapply Relation_Operators.rtn1_trans.
+        apply SIfTrue_step. apply comp.
+      * simpl. rewrite <- comp_subB. rewrite <- upd. apply andb_true_iff. split; assumption.
+      * assumption.
+    + assert (IH : exists sig phi, (S, id_sub, BTrue) ->* (<{ if b {s1} {s2} ; s }>, sig, phi)
+                         /\ Beval V0 phi = true
+                         /\ V = Comp V0 sig) by (eapply IHclos_refl_trans_n1; reflexivity).
+      destruct IH as [sig [phi [comp [val upd]]]].
+      eexists. eexists. splits.
+      * eapply Relation_Operators.rtn1_trans.
+        apply SIfFalse_step. apply comp.
+      * simpl. rewrite <- comp_subB. rewrite <- upd. apply andb_true_iff. rewrite negb_true_iff.
+        split; assumption.
+      * assumption.
+    + assert (IH : exists sig phi, (S, id_sub, BTrue) ->* (<{ while b {s}; s' }>, sig, phi)
+                         /\ Beval V0 phi = true
+                         /\ V = Comp V0 sig) by (eapply IHclos_refl_trans_n1; reflexivity).
+      destruct IH as [sig [phi [comp [val upd]]]].
+      eexists. eexists. splits.
+      * eapply Relation_Operators.rtn1_trans.
+        apply SWhileTrue_step. apply comp.
+      * simpl. rewrite andb_true_iff. rewrite  <- comp_subB. rewrite <- upd.
+        split; assumption.
+      * assumption.
+    + assert (IH : exists sig phi, (S, id_sub, BTrue) ->* (<{ while b {s}; S' }>, sig, phi)
+                         /\ Beval V0 phi = true
+                         /\ V = Comp V0 sig) by (eapply IHclos_refl_trans_n1; reflexivity).
+      destruct IH as [sig [phi [comp [val upd]]]].
+      eexists. eexists. splits.
+      * eapply Relation_Operators.rtn1_trans.
+        apply SWhileFalse_step. apply comp.
+      * simpl. rewrite <- comp_subB. rewrite <- upd. rewrite andb_true_iff. rewrite negb_true_iff.
+        split; assumption.
+      * assumption.
 Qed.
 
 (* another concise, but unreadable proof *)
+(* keeping it because just the computation might be useful *)
 Theorem completeness' : forall S S' V0 V,
     (S, V0) =>* (S', V) ->
     exists sig phi, (S, id_sub, BTrue) ->* (S', sig, phi).
