@@ -9,9 +9,13 @@ In the formalization we let both GVar and LVar be string *)
 
 From Coq Require Import Strings.String.
 From Coq Require Import Bool.Bool.
+From Coq Require Import Arith.EqNat. Import Nat.
 From Coq Require Import Init.Datatypes.
 From Coq Require Import Program.   (* for `dependent induction` *)
+From Coq Require Import Logic.FunctionalExtensionality. (* for equality of substitutions *)
 From Coq Require Import Relations.
+From Coq Require Import Lists.List.
+Import ListNotations.
 
 (*... actually I need to redo everything to account for local/global separation*)
 Definition LVar := string.
@@ -110,42 +114,39 @@ Notation "'while' x '{' y '}'" :=
             y at level 99) : com_scope.
 Notation "'return'" := SReturn (in custom com at level 80) : com_scope.
 
-Notation "'proc(' u ')' '{' b '}'"  :=
+Notation "'proc' '(' u ')' '{' b '}'"  :=
          (PDec u b)
             (in custom com at level 0, u constr at level 0,
              b at level 85, no associativity) : com_scope.
 
-Inductive Cstack : Type :=
-| CSEmpty
-| CSPush (clos: LSub * Stmt) (s: Cstack).
+(** Symbolic semantics *)
 
-Notation "[ x ]" := (CSPush x CSEmpty) : com_scope.
-Notation "[ x ; y ; .. ; z ]" := (CSPush x (CSPush y .. (CSPush z CSEmpty) ..)) : com_scope.
+Definition Sstack := list (LSub * Stmt).
 
-Example test (x y z: LSub * Stmt) : Cstack := [ x ; y ; z ].
+Open Scope list_scope.
 
-Definition SConfig : Type := Cstack * GSub * Bexpr.
+Definition SConfig : Type := Sstack * GSub * Bexpr.
 
 Reserved Notation " c '->s' c' " (at level 40).
 
 Inductive Sstep : relation SConfig :=
 | SGAsgn_step : forall x e S t D sig phi,
-    ([(t, <{ x :=G e ; S }>) ; D], sig, phi) ->s ([(t, S) ; D], update sig x (Aapply t sig e), phi)
+    ((t, <{ x :=G e ; S }>) :: D, sig, phi) ->s ((t, S) :: D, update sig x (Aapply t sig e), phi)
 | SLAsgn_step : forall x e S t D sig phi,
-    ([(t, <{ x :=L e ; S }>) ; D], sig, phi) ->s ([(update t x (Aapply t sig e), S) ; D], sig, phi)
+    ((t, <{ x :=L e ; S }>) :: D, sig, phi) ->s ((update t x (Aapply t sig e), S) :: D, sig, phi)
 | SProc_step : forall t u body e S D sig phi,
-    ([(t, <{ proc(u){body}(e) ; S }>) ; D], sig, phi)
-    ->s ([ ((u !-> (Aapply t sig e) ; Lid_sub), body) ; (t , S) ; D ], sig, phi)
+    ((t, <{ proc(u){body}(e) ; S }>) :: D, sig, phi)
+    ->s (((u !-> (Aapply t sig e) ; Lid_sub), body) :: (t , S) :: D , sig, phi)
 | SReturn_step : forall t D sig phi,
-    ([(t, <{ return }>) ; D], sig, phi) ->s ([ D ], sig, phi)
+    ((t, <{ return }>) :: D, sig, phi) ->s ( D , sig, phi)
 | SIfTrue_step : forall t b s1 s2 s D sig phi,
-    ([(t, <{ if b {s1} {s2} ; s }>) ; D], sig, phi) ->s ([(t, <{ s1 ; s }>) ; D], sig, BAnd phi (Bapply t sig b))
+    ((t, <{ if b {s1} {s2} ; s }>) :: D, sig, phi) ->s ((t, <{ s1 ; s }>) :: D, sig, BAnd phi (Bapply t sig b))
 | SIfFalse_step : forall t b s1 s2 s D sig phi,
-    ([(t, <{ if b {s1} {s2} ; s }>) ; D], sig, phi) ->s ([(t, <{ s1 ; s }>) ; D], sig, BAnd phi (BNot (Bapply t sig b)))
+    ((t, <{ if b {s1} {s2} ; s }>) :: D, sig, phi) ->s ((t, <{ s1 ; s }>) :: D, sig, BAnd phi (BNot (Bapply t sig b)))
 | SWhileTrue_step : forall t b s s' D sig phi,
-    ([(t, <{ while b {s} ; s' }>) ; D], sig, phi) ->s ([(t, <{ s ; while b {s} ; s' }>) ; D], sig, BAnd phi (Bapply t sig b))
+    ((t, <{ while b {s} ; s' }>) :: D, sig, phi) ->s ((t, <{ s ; while b {s} ; s' }>) :: D, sig, BAnd phi (Bapply t sig b))
 | SWhileFalse_step : forall t b s s' D sig phi,
-    ([(t, <{ while b {s} ; s' }>) ; D], sig, phi) ->s ([(t, s') ; D], sig, BAnd phi (BNot (Bapply t sig b)))
+    ((t, <{ while b {s} ; s' }>) :: D, sig, phi) ->s ((t, s') :: D, sig, BAnd phi (BNot (Bapply t sig b)))
   where " c '->s' c' " := (Sstep c c').
 
 Definition multi_Sstep := clos_refl_trans_n1 _ Sstep.
@@ -178,69 +179,151 @@ Fixpoint Sno_local (s:Stmt) : bool :=
   | _ => true
   end.
 
-(* Proposition 3.2 *)
-(* slightly clunky statement(s) to denote *non-empty* computation, but proof is immediate *)
-Lemma no_local_in_computation : forall s t s' D sig phi c u x,
-    ([(Lid_sub, s)], Gid_sub, BTrue) ->s c ->
-    c ->* ([(t, s') ; D], sig, phi) ->
-    Ano_local (t u) = true /\ Ano_local (sig x) = true.
-Proof.
-  intros. split; inversion H; subst.
-Qed.
-
-Lemma Bno_local_in_computation : forall s t s' D sig phi c b,
-    ([(Lid_sub, s)], Gid_sub, BTrue) ->s c ->
-    c ->* ([(t, s') ; D], sig, phi) ->
-    Bno_local (Bapply t sig b) = true.
-Proof.
-  intros. inversion H; subst.
-Qed.
-
-(* more convenient statements, less convenient proofs *)
-(* - c'est la vie *)
-Lemma  no_local_in_computation' : forall s t s' D sig phi c u x,
-    ([(Lid_sub, s)], Gid_sub, BTrue) ->* c ->
-    c ->s ([(t, s') ; D], sig, phi) ->
-    Ano_local (t u) = true /\ Ano_local (sig x) = true.
-Proof.
-  intros.
-  unfold multi_Sstep in H.
-  rewrite <- clos_rt_rtn1_iff in H. rewrite clos_rt_rt1n_iff in H.
-  destruct H.
-  - split; inversion H0; subst.
-  - eapply no_local_in_computation.
-    + apply H.
-    + rewrite <- clos_rt_rt1n_iff in H1. rewrite clos_rt_rtn1_iff in H1.
-      eapply Relation_Operators.rtn1_trans. apply H0. apply H1.
-Qed.
-
-Lemma Bno_local_in_computation' : forall s t s' D sig phi c b,
-    ([(Lid_sub, s)], Gid_sub, BTrue) ->* c ->
-    c ->s ([(t, s') ; D], sig, phi) ->
-    Bno_local (Bapply t sig b) = true.
-Proof.
-  intros.
-  unfold multi_Sstep in H.
-  rewrite <- clos_rt_rtn1_iff in H. rewrite clos_rt_rt1n_iff in H.
-  destruct H.
-  - inversion H0; subst.
-  - eapply Bno_local_in_computation.
-    + apply H.
-    + rewrite <- clos_rt_rt1n_iff in H1. rewrite clos_rt_rtn1_iff in H1.
-      eapply Relation_Operators.rtn1_trans. apply H0. apply H1.
-Qed.
-
 Definition is_initial (s:Stmt) := Sno_local s = true.
 
-(* Corollary 3.2 *)
-Theorem no_local_in_pc : forall s s' t D sig phi,
-    ([(Lid_sub, s)], Gid_sub, BTrue) ->* ([(t, s') ; D], sig, phi) ->
-    is_initial s ->
-    Bno_local phi = true.
-Proof.
-  intros. dependent induction H.
-  inversion H; subst;
-  try (simpl; apply andb_true_iff; split);
-    try (eapply IHclos_refl_trans_n1; try reflexivity; assumption);
-    try (eapply Bno_local_in_computation'; try apply H0; apply H).
+(** Concrete semantics *)
+
+Definition GVal : Type := GVar -> nat.
+Definition LVal : Type := LVar -> nat.
+
+Definition LVal_e : LVal := fun _ => 0.
+Definition GVal_e : GVal := fun _ => 0.
+
+Fixpoint Aeval (G:GVal) (L:LVal) (e:Aexpr) : nat :=
+  match e with
+  | AConst n => n
+  | AGVar x => G x
+  | ALVar x => L x
+  | APlus a1 a2 => (Aeval G L a1) + (Aeval G L a2)
+  end.
+
+Fixpoint Beval (G:GVal) (L:LVal) (e:Bexpr) : bool :=
+  match e with
+  | BTrue => true
+  | BFalse => false
+  | BNot b => negb (Beval G L b)
+  | BAnd b1 b2 => (Beval G L b1) && (Beval G L b2)
+  | BLeq a1 a2 => (Aeval G L a1) <=? (Aeval G L a2)
+  end.
+
+(** We can update a valuation with a substitution by composition *)
+
+Definition GComp (G:GVal) (L:LVal) (s:GVar -> Aexpr) : GVal :=
+  fun x => Aeval G L (s x).
+Definition LComp (G:GVal) (L:LVal) (s:LVar -> Aexpr) : LVal :=
+  fun x => Aeval G L (s x).
+
+(** might need some substitution / composition / asgn_sound lemmas **)
+
+Definition Cstack := list (LVal * Stmt).
+Definition CConfig : Type := Cstack * GVal.
+
+Fixpoint EvalStack (G:GVal) (L:LVal) (s:Sstack) : Cstack :=
+  match s with
+  | [] => []
+  | (t, s) :: ss => (LComp G L t, s) :: EvalStack G L ss
+  end.
+
+Reserved Notation " c '=>c' c' " (at level 40).
+
+Inductive Cstep : relation CConfig :=
+| CGAsgn_step : forall L x e s C G,
+    ((L,  <{ x :=G e ; s }>) :: C, G) =>c ([(L, s)], update G x (Aeval G L e))
+| CLAsgn_step : forall L x e s C G,
+    ((L,  <{ x :=L e ; s }>) :: C, G) =>c ((update L x (Aeval G L e), s) :: C, G)
+| CProc_step : forall L u body e s C G,
+    ((L, <{ proc(u){body}(e) ; s }>) :: C, G) (*slight cheating with "empty" valuation here *)
+  =>c (((u !-> (Aeval G L e) ; LVal_e), body) :: (L, s) :: C, G)
+| CProc_return : forall L C G,
+    ((L, <{return}>) :: C, G) =>c (C, G)
+| CIfTrue_step : forall L b s1 s2 s C G,
+    Beval G L b = true ->
+    ((L, <{ if b {s1}{s2} ; s }>) :: C, G) =>c ((L, <{s1 ; s}>) :: C, G)
+| CIfFalse_step : forall L b s1 s2 s C G,
+    Beval G L b = false ->
+    ((L, <{ if b {s1}{s2} ; s }>) :: C, G) =>c ((L, <{s2 ; s}>) :: C, G)
+| CWhileTrue_step : forall L b s s' C G,
+    Beval G L b = true ->
+    ((L, <{ while b {s} ; s' }>) :: C, G) =>c ((L, <{s ; while b {s} ; s'}>) :: C, G)
+| CWhileFalse_step : forall L b s s' C G,
+    Beval G L b = false ->
+    ((L, <{ while b {s} ; s' }>) :: C, G) =>c ((L, s') :: C, G)
+  where " c '=>c' c' " := (Cstep c c').
+
+Definition multi_Cstep := clos_refl_trans_n1 _ Cstep.
+Notation " c '=>*' c' " := (multi_Cstep c c') (at level 40).
+
+Lemma LComp_id : forall G L,
+    LComp G L Lid_sub = L.
+Proof. intros. extensionality x. unfold LComp. reflexivity. Qed.
+
+Lemma GComp_id : forall G L,
+    GComp G L Gid_sub = G.
+Proof. intros. extensionality x. unfold GComp. reflexivity. Qed.
+
+Lemma LComp_sub' : forall G L t e,
+    Aeval G (LComp G L t) e = Aeval G L (Aapply t Gid_sub e).
+Proof. induction e; simpl;
+         try (rewrite IHe1; rewrite IHe2);
+        reflexivity.
 Qed.
+
+Lemma GComp_sub' : forall G L s e,
+    Aeval (GComp G L s) L e = Aeval G L (Aapply Lid_sub s e).
+Proof. induction e; simpl;
+         try (rewrite IHe1; rewrite IHe2);
+        reflexivity.
+Qed.
+
+Lemma LComp_sub : forall G L s t e,
+    Aeval G (LComp G L t) e = Aeval G L (Aapply t s e).
+Proof. Admitted.
+
+Lemma GComp_sub : forall G L s t e,
+    Aeval (GComp G L s) L e = Aeval G L (Aapply t s e).
+Proof. Admitted.
+
+(* Corollary 3.4 *)
+Lemma Lasgn_sound' : forall G L t x e,
+    LComp G L (update t x (Aapply t Gid_sub e)) = update (LComp G L t) x (Aeval G (LComp G L t) e).
+Proof.
+  intros. extensionality y.
+  unfold LComp. unfold update. destruct (x =? y)%string;
+  try (rewrite <- LComp_sub; unfold LComp); reflexivity.
+Qed.
+
+Lemma Gasgn_sound' : forall G L s x e,
+    GComp G L (update s x (Aapply Lid_sub s e)) = update (GComp G L s) x (Aeval (GComp G L s) L e).
+Proof.
+  intros. extensionality y.
+  unfold GComp. unfold update. destruct (x =? y)%string;
+  try (rewrite <- GComp_sub; unfold GComp); reflexivity.
+Qed.
+
+Lemma Lasgn_sound : forall G L s t x e,
+    LComp G L (update t x (Aapply t s e)) = update (LComp G L t) x (Aeval G (LComp G L t) e).
+Proof.
+  intros. extensionality y.
+  unfold LComp. unfold update. destruct (x =? y)%string;
+  try (rewrite <- LComp_sub; unfold LComp); reflexivity.
+Qed.
+
+Lemma Gasgn_sound : forall G L s t x e,
+    GComp G L (update s x (Aapply t s e)) = update (GComp G L s) x (Aeval (GComp G L s) L e).
+Proof.
+  intros. extensionality y.
+  unfold GComp. unfold update. destruct (x =? y)%string;
+  try (rewrite <- GComp_sub; unfold GComp); reflexivity.
+Qed.
+
+Theorem correctness : forall s s' t D sig phi G L,
+    is_initial s ->
+    Beval G L phi = true ->
+    ([(Lid_sub, s)], Gid_sub, BTrue) ->* ((t, s') :: D, sig, phi) ->
+    ([(L, s)], G) =>* ((LComp G L t, s') :: EvalStack G L D, GComp G L sig).
+Proof.
+  intros. dependent induction H1.
+  - rewrite LComp_id. rewrite GComp_id. apply rtn1_refl.
+  - dependent destruction H2.
+    + eapply Relation_Operators.rtn1_trans.
+      * rewrite Gasgn_sound. erewrite GComp_sub. apply CGAsgn_step.
