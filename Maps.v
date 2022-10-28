@@ -12,7 +12,7 @@ From Coq Require Import Logic.FunctionalExtensionality. (* for equality of subst
 
 From SymEx Require Import Expr.
 
-(* Both substituions and valuations are maps /from/ strings and have some common
+(* Both substitutions and valuations are maps /from/ strings and have some common
 operations and notation *)
 
 Definition update {E:Type} (s: string -> E) (x:string) (e:E) : string -> E :=
@@ -25,13 +25,12 @@ Notation "'_' '!->' v" := (empty_map v) (at level 100, right associativity).
 
 (* substitions map to (Arithmetic) expressions*)
 Definition sub : Type := string -> Aexpr.
-Definition id_sub : sub := fun x => x.
+Definition id_sub : string -> Aexpr := fun x => x.
 
 (* valuations map to concrete values *)
 Definition Valuation := string -> nat.
 
-
-Fixpoint Aapply (s:sub) (e:Aexpr) : Aexpr :=
+Fixpoint Aapply (s:string -> Aexpr) (e:Aexpr) : Aexpr :=
   match e with
   | AConst n => AConst n
   | AVar x => s x
@@ -45,7 +44,7 @@ Proof.
   simpl. rewrite IHe1. rewrite IHe2. reflexivity.
 Qed.
 
-Fixpoint Bapply  (s:sub) (e:Bexpr) : Bexpr :=
+Fixpoint Bapply  (s:string -> Aexpr) (e:Bexpr) : Bexpr :=
   match e with
   | BTrue => BTrue
   | BFalse => BFalse
@@ -83,7 +82,7 @@ Fixpoint Beval (V:Valuation) (e:Bexpr) : bool :=
 (** We can update a valuation with a substitution by composition
     and prove some useful properties *)
 
-Definition Comp (V:Valuation) (s:sub) : Valuation :=
+Definition Comp (V:Valuation) (s:string -> Aexpr) : Valuation :=
   fun x => Aeval V (s x).
 
 (** Lemma 2.1 *)
