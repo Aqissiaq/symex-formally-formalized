@@ -64,21 +64,21 @@ Definition GSub := GVar -> Aexpr.
 Definition Gid_sub : GVar -> Aexpr := fun x => AGVar x.
 Definition Lid_sub : LVar -> Aexpr := fun x => ALVar x.
 
-Fixpoint Aapply (t:LVar -> Aexpr) (s:GVar -> Aexpr) (e:Aexpr) : Aexpr :=
+Fixpoint Aapply (s:GVar -> Aexpr) (t:LVar -> Aexpr) (e:Aexpr) : Aexpr :=
   match e with
   | AConst n => AConst n
   | AGVar x => s x
   | ALVar x => t x
-  | APlus a1 a2 => APlus (Aapply t s a1) (Aapply t s a2)
+  | APlus a1 a2 => APlus (Aapply s t a1) (Aapply s t a2)
   end.
 
-Fixpoint Bapply  (t:LVar -> Aexpr) (s:GVar -> Aexpr) (e:Bexpr) : Bexpr :=
+Fixpoint Bapply  (s:GVar -> Aexpr) (t:LVar -> Aexpr) (e:Bexpr) : Bexpr :=
   match e with
   | BTrue => BTrue
   | BFalse => BFalse
-  | BNot b => BNot (Bapply t s b)
-  | BAnd b1 b2 => BAnd (Bapply t s b1) (Bapply t s b2)
-  | BLeq a1 a2 => BLeq (Aapply t s a1) (Aapply t s a2)
+  | BNot b => BNot (Bapply s t b)
+  | BAnd b1 b2 => BAnd (Bapply s t b1) (Bapply s t b2)
+  | BLeq a1 a2 => BLeq (Aapply s t a1) (Aapply s t a2)
   end.
 
 Inductive Stmt : Type :=
@@ -131,22 +131,23 @@ Reserved Notation " c '->s' c' " (at level 40).
 
 Inductive Sstep : relation SConfig :=
 | SGAsgn_step : forall x e S t D sig phi,
-    ((t, <{ x :=G e ; S }>) :: D, sig, phi) ->s ((t, S) :: D, update sig x (Aapply t sig e), phi)
+    ((t, <{ x :=G e ; S }>) :: D, sig, phi) ->s ((t, S) :: D, update sig x (Aapply sig t e), phi)
 | SLAsgn_step : forall x e S t D sig phi,
-    ((t, <{ x :=L e ; S }>) :: D, sig, phi) ->s ((update t x (Aapply t sig e), S) :: D, sig, phi)
+    ((t, <{ x :=L e ; S }>) :: D, sig, phi) ->s ((update t x (Aapply sig t e), S) :: D, sig, phi)
 | SProc_step : forall t u body e S D sig phi,
     ((t, <{ proc(u){body}(e) ; S }>) :: D, sig, phi)
-    ->s (((u !-> (Aapply t sig e) ; Lid_sub), body) :: (t , S) :: D , sig, phi)
+      (* we choose to extend the current scope *)
+    ->s ((update t u (Aapply sig t e), body) :: (t , S) :: D , sig, phi)
 | SReturn_step : forall t D sig phi,
     ((t, <{ return }>) :: D, sig, phi) ->s ( D , sig, phi)
 | SIfTrue_step : forall t b s1 s2 s D sig phi,
-    ((t, <{ if b {s1} {s2} ; s }>) :: D, sig, phi) ->s ((t, <{ s1 ; s }>) :: D, sig, BAnd phi (Bapply t sig b))
+    ((t, <{ if b {s1} {s2} ; s }>) :: D, sig, phi) ->s ((t, <{ s1 ; s }>) :: D, sig, BAnd phi (Bapply sig t b))
 | SIfFalse_step : forall t b s1 s2 s D sig phi,
-    ((t, <{ if b {s1} {s2} ; s }>) :: D, sig, phi) ->s ((t, <{ s1 ; s }>) :: D, sig, BAnd phi (BNot (Bapply t sig b)))
+    ((t, <{ if b {s1} {s2} ; s }>) :: D, sig, phi) ->s ((t, <{ s2 ; s }>) :: D, sig, BAnd phi (BNot (Bapply sig t b)))
 | SWhileTrue_step : forall t b s s' D sig phi,
-    ((t, <{ while b {s} ; s' }>) :: D, sig, phi) ->s ((t, <{ s ; while b {s} ; s' }>) :: D, sig, BAnd phi (Bapply t sig b))
+    ((t, <{ while b {s} ; s' }>) :: D, sig, phi) ->s ((t, <{ s ; while b {s} ; s' }>) :: D, sig, BAnd phi (Bapply sig t b))
 | SWhileFalse_step : forall t b s s' D sig phi,
-    ((t, <{ while b {s} ; s' }>) :: D, sig, phi) ->s ((t, s') :: D, sig, BAnd phi (BNot (Bapply t sig b)))
+    ((t, <{ while b {s} ; s' }>) :: D, sig, phi) ->s ((t, s') :: D, sig, BAnd phi (BNot (Bapply sig t b)))
   where " c '->s' c' " := (Sstep c c').
 
 Definition multi_Sstep := clos_refl_trans_n1 _ Sstep.
@@ -208,10 +209,45 @@ Fixpoint Beval (G:GVal) (L:LVal) (e:Bexpr) : bool :=
 
 (** We can update a valuation with a substitution by composition *)
 
+Fixpoint Aeval_comp (G:GVal) (L:LVal) (s:GVar -> Aexpr) (t:LVar -> Aexpr) (e:Aexpr) : nat :=
+  match e with
+  | AConst n => n
+  | AGVar x => Aeval G L (s x)
+  | ALVar x => Aeval G L (t x)
+  | APlus a1 a2 => (Aeval_comp G L s t a1) + (Aeval_comp G L s t a2)
+  end.
+
+Fixpoint Beval_comp (G:GVal) (L:LVal) (s:GVar -> Aexpr) (t:LVar -> Aexpr) (e:Bexpr) : bool :=
+  match e with
+  | BTrue => true
+  | BFalse => false
+  | BNot b => negb (Beval_comp G L s t b)
+  | BAnd b1 b2 => (Beval_comp G L s t b1) && (Beval_comp G L s t b2)
+  | BLeq a1 a2 => (Aeval_comp G L s t a1) <=? (Aeval_comp G L s t a2)
+  end.
+
 Definition GComp (G:GVal) (L:LVal) (s:GVar -> Aexpr) : GVal :=
   fun x => Aeval G L (s x).
-Definition LComp (G:GVal) (L:LVal) (s:LVar -> Aexpr) : LVal :=
-  fun x => Aeval G L (s x).
+Definition LComp (G:GVal) (L:LVal) (t:LVar -> Aexpr) : LVal :=
+  fun x => Aeval G L (t x).
+
+Lemma eval_comp : forall G L s t e,
+    Aeval_comp G L s t e = Aeval (GComp G L s) (LComp G L t) e.
+Proof.
+  induction e; simpl;
+   try (rewrite IHe1; rewrite IHe2);
+   try reflexivity.
+Qed.
+
+Lemma eval_compB : forall G L s t e,
+    Beval_comp G L s t e = Beval (GComp G L s) (LComp G L t) e.
+Proof.
+  induction e; simpl;
+   try (rewrite IHe);
+   try (rewrite IHe1; rewrite IHe2);
+   repeat (rewrite eval_comp);
+   try reflexivity.
+Qed.
 
 (** might need some substitution / composition / asgn_sound lemmas **)
 
@@ -224,16 +260,20 @@ Fixpoint EvalStack (G:GVal) (L:LVal) (s:Sstack) : Cstack :=
   | (t, s) :: ss => (LComp G L t, s) :: EvalStack G L ss
   end.
 
+Lemma stack_eval : forall G L s t D,
+    (LComp G L t, s) :: EvalStack G L D = EvalStack G L ((t, s) :: D).
+Proof. induction D; reflexivity. Qed.
+
 Reserved Notation " c '=>c' c' " (at level 40).
 
 Inductive Cstep : relation CConfig :=
 | CGAsgn_step : forall L x e s C G,
-    ((L,  <{ x :=G e ; s }>) :: C, G) =>c ([(L, s)], update G x (Aeval G L e))
+    ((L,  <{ x :=G e ; s }>) :: C, G) =>c ((L, s) :: C, update G x (Aeval G L e))
 | CLAsgn_step : forall L x e s C G,
     ((L,  <{ x :=L e ; s }>) :: C, G) =>c ((update L x (Aeval G L e), s) :: C, G)
 | CProc_step : forall L u body e s C G,
-    ((L, <{ proc(u){body}(e) ; s }>) :: C, G) (*slight cheating with "empty" valuation here *)
-  =>c (((u !-> (Aeval G L e) ; LVal_e), body) :: (L, s) :: C, G)
+    ((L, <{ proc(u){body}(e) ; s }>) :: C, G)
+  =>c ((update L u (Aeval G L e), body) :: (L, s) :: C, G)
 | CProc_return : forall L C G,
     ((L, <{return}>) :: C, G) =>c (C, G)
 | CIfTrue_step : forall L b s1 s2 s C G,
@@ -261,69 +301,78 @@ Lemma GComp_id : forall G L,
     GComp G L Gid_sub = G.
 Proof. intros. extensionality x. unfold GComp. reflexivity. Qed.
 
-Lemma LComp_sub' : forall G L t e,
-    Aeval G (LComp G L t) e = Aeval G L (Aapply t Gid_sub e).
-Proof. induction e; simpl;
-         try (rewrite IHe1; rewrite IHe2);
-        reflexivity.
+Lemma Comp_sub : forall G L s t e,
+    Aeval_comp G L s t e = Aeval G L (Aapply s t e).
+Proof.
+  induction e; simpl; try reflexivity.
+   try (rewrite IHe1; rewrite IHe2). reflexivity.
 Qed.
 
-Lemma GComp_sub' : forall G L s e,
-    Aeval (GComp G L s) L e = Aeval G L (Aapply Lid_sub s e).
-Proof. induction e; simpl;
-         try (rewrite IHe1; rewrite IHe2);
-        reflexivity.
+Lemma Comp_subB : forall G L s t e,
+    Beval_comp G L s t e = Beval G L (Bapply s t e).
+Proof.
+  induction e; simpl;
+  try (rewrite IHe);
+   try (rewrite IHe1; rewrite IHe2);
+   repeat (rewrite Comp_sub);
+   reflexivity.
 Qed.
-
-Lemma LComp_sub : forall G L s t e,
-    Aeval G (LComp G L t) e = Aeval G L (Aapply t s e).
-Proof. Admitted.
-
-Lemma GComp_sub : forall G L s t e,
-    Aeval (GComp G L s) L e = Aeval G L (Aapply t s e).
-Proof. Admitted.
 
 (* Corollary 3.4 *)
-Lemma Lasgn_sound' : forall G L t x e,
-    LComp G L (update t x (Aapply t Gid_sub e)) = update (LComp G L t) x (Aeval G (LComp G L t) e).
-Proof.
-  intros. extensionality y.
-  unfold LComp. unfold update. destruct (x =? y)%string;
-  try (rewrite <- LComp_sub; unfold LComp); reflexivity.
-Qed.
-
-Lemma Gasgn_sound' : forall G L s x e,
-    GComp G L (update s x (Aapply Lid_sub s e)) = update (GComp G L s) x (Aeval (GComp G L s) L e).
-Proof.
-  intros. extensionality y.
-  unfold GComp. unfold update. destruct (x =? y)%string;
-  try (rewrite <- GComp_sub; unfold GComp); reflexivity.
-Qed.
-
 Lemma Lasgn_sound : forall G L s t x e,
-    LComp G L (update t x (Aapply t s e)) = update (LComp G L t) x (Aeval G (LComp G L t) e).
+    LComp G L (update t x (Aapply s t e)) = update (LComp G L t) x (Aeval_comp G L s t e).
 Proof.
   intros. extensionality y.
   unfold LComp. unfold update. destruct (x =? y)%string;
-  try (rewrite <- LComp_sub; unfold LComp); reflexivity.
+  try rewrite Comp_sub; reflexivity.
 Qed.
 
 Lemma Gasgn_sound : forall G L s t x e,
-    GComp G L (update s x (Aapply t s e)) = update (GComp G L s) x (Aeval (GComp G L s) L e).
+    GComp G L (update s x (Aapply s t e)) = update (GComp G L s) x (Aeval_comp G L s t e).
 Proof.
   intros. extensionality y.
   unfold GComp. unfold update. destruct (x =? y)%string;
-  try (rewrite <- GComp_sub; unfold GComp); reflexivity.
+  try (rewrite Comp_sub); reflexivity.
 Qed.
 
 Theorem correctness : forall s s' t D sig phi G L,
-    is_initial s ->
-    Beval G L phi = true ->
     ([(Lid_sub, s)], Gid_sub, BTrue) ->* ((t, s') :: D, sig, phi) ->
+    Beval G L phi = true ->
     ([(L, s)], G) =>* ((LComp G L t, s') :: EvalStack G L D, GComp G L sig).
 Proof.
-  intros. dependent induction H1.
+  intros. dependent induction H.
   - rewrite LComp_id. rewrite GComp_id. apply rtn1_refl.
-  - dependent destruction H2.
+  - dependent destruction H.
     + eapply Relation_Operators.rtn1_trans.
-      * rewrite Gasgn_sound. erewrite GComp_sub. apply CGAsgn_step.
+      * rewrite Gasgn_sound. rewrite eval_comp. apply CGAsgn_step.
+      * apply IHclos_refl_trans_n1 with (phi := phi); try assumption; reflexivity.
+    + eapply Relation_Operators.rtn1_trans.
+      * rewrite Lasgn_sound. rewrite eval_comp. apply CLAsgn_step.
+      * apply IHclos_refl_trans_n1 with (phi := phi); try assumption; reflexivity.
+    + eapply Relation_Operators.rtn1_trans.
+      * rewrite Lasgn_sound. rewrite eval_comp. apply CProc_step.
+      * apply IHclos_refl_trans_n1 with (phi := phi); try assumption; reflexivity.
+    + eapply Relation_Operators.rtn1_trans.
+      * apply CProc_return.
+      * rewrite stack_eval. apply IHclos_refl_trans_n1 with (phi := phi); try assumption; reflexivity.
+    + eapply Relation_Operators.rtn1_trans.
+           * apply CIfTrue_step. inversion H1. rewrite H2.
+             apply andb_true_iff in H2. auto. destruct H2. rewrite <- eval_compB. rewrite Comp_subB. apply H2.
+           * eapply IHclos_refl_trans_n1; try reflexivity.
+             apply andb_true_iff in H1. destruct H1. apply H.
+    + eapply Relation_Operators.rtn1_trans.
+           * apply CIfFalse_step. inversion H1. apply andb_true_iff in H2. destruct H2.
+             apply negb_true_iff in H2. rewrite <- eval_compB. rewrite Comp_subB. apply H2.
+           * eapply IHclos_refl_trans_n1 with (phi := phi0); try reflexivity.
+             inversion H1. rewrite H2. apply andb_true_iff in H2. destruct H2. apply H.
+         + eapply Relation_Operators.rtn1_trans.
+           * apply CWhileTrue_step. inversion H1. rewrite H2.
+             apply andb_true_iff in H2. destruct H2. rewrite <- eval_compB. rewrite Comp_subB. apply H2.
+           * eapply IHclos_refl_trans_n1; try reflexivity. inversion H1. rewrite H2.
+             apply andb_true_iff in H2. destruct H2. apply H.
+         + eapply Relation_Operators.rtn1_trans.
+           * apply CWhileFalse_step. inversion H1. apply andb_true_iff in H2. destruct H2.
+             apply negb_true_iff in H2. rewrite <- eval_compB. rewrite Comp_subB. apply H2.
+           * eapply IHclos_refl_trans_n1; try reflexivity. inversion H1. rewrite H2.
+             apply andb_true_iff in H2. destruct H2. apply H.
+Qed.
