@@ -393,6 +393,18 @@ Qed.
 
 Ltac splits := repeat (try split).
 
+(* automatically solves the steps that don't really care about processes *)
+(* could incorporate more steps to solve all of them, but - like de Boer - I want to spell out the interesting cases *)
+Ltac solve_cases IH :=
+      destruct IH as [t [sig [phi [D [comp [stack [pc [gVal lVal]]]]]]]];
+      eexists; eexists; eexists; eexists; splits;
+       try (eapply Relation_Operators.rtn1_trans; [constructor | apply comp]);
+       try (simpl; apply andb_true_iff; split);
+       try (apply negb_true_iff);
+       try (rewrite <- Comp_subB; rewrite eval_compB; rewrite <- gVal; rewrite <- lVal);
+       try assumption;
+       try reflexivity.
+
 Theorem completeness : forall G G' L L' s s' C,
     ([(L, s)], G) =>* ((L', s') :: C, G') ->
     exists t sig phi D, ([(Lid_sub, s)], Gid_sub, BTrue) ->* ((t,s') :: D, sig, phi)
@@ -402,8 +414,7 @@ Theorem completeness : forall G G' L L' s s' C,
                  /\ L' = LComp G L t.
 Proof.
   intros. dependent induction H.
-  - exists Lid_sub. exists Gid_sub. exists BTrue. exists []. splits.
-    + apply rtn1_refl.
+  - exists Lid_sub. exists Gid_sub. exists BTrue. exists []. splits; apply rtn1_refl.
   - dependent destruction H.
     + assert (IH : exists t sig phi D, ([(Lid_sub, s)], Gid_sub, BTrue) ->* ((t, <{ x :=G e ; s'}>) :: D, sig, phi)
                                   /\ C = EvalStack G L D
@@ -436,12 +447,12 @@ Proof.
                                   /\ L0 = LComp G L t)
       by (eapply IHclos_refl_trans_n1; reflexivity).
       destruct IH as [t [sig [phi [D [comp [stackV [pc [gVal lVal]]]]]]]].
-      eexists. eexists. eexists. eexists. splits.
-      * eapply Relation_Operators.rtn1_trans. apply SProc_step. apply comp.
-      * rewrite stackV. rewrite <- stack_eval. rewrite lVal. reflexivity.
-      * assumption.
-      * assumption.
-      * rewrite Lasgn_sound. rewrite eval_comp. rewrite gVal. rewrite lVal. reflexivity.
+      eexists. eexists. eexists. eexists. splits;
+       try (eapply Relation_Operators.rtn1_trans; [apply SProc_step | apply comp]);
+       try (rewrite stackV; rewrite <- stack_eval; rewrite lVal);
+       try (rewrite Lasgn_sound; rewrite eval_comp; rewrite gVal; rewrite lVal);
+       try assumption;
+       reflexivity.
     + assert (IH : exists t sig phi D, ([(Lid_sub, s)], Gid_sub, BTrue) ->* ((t, <{ return }>) :: D, sig, phi)
                                   /\ (L', s') :: C = EvalStack G L D
                                   /\ Beval G L phi = true
@@ -450,66 +461,40 @@ Proof.
       by (eapply IHclos_refl_trans_n1; reflexivity).
       destruct IH as [t [sig [phi [D [comp [stackV [pc [gVal lVal]]]]]]]].
       destruct D.
-        simpl in stackV. symmetry in stackV. apply nil_cons in stackV. contradiction.
-        destruct p. exists l. exists sig. exists phi. exists D. splits;
-         try (assumption);
-         try (rewrite <- stack_eval in stackV; inversion stackV; reflexivity).
-      eapply Relation_Operators.rtn1_trans.
-        * apply SReturn_step.
-        * assert (s' = s0). {rewrite <- stack_eval in stackV. inversion stackV. reflexivity.}
-          rewrite H. apply comp.
+        * simpl in stackV. symmetry in stackV. apply nil_cons in stackV. contradiction.
+        * destruct p. exists l. exists sig. exists phi. exists D. splits;
+           try (assumption);
+           try (rewrite <- stack_eval in stackV; inversion stackV; reflexivity).
+          eapply Relation_Operators.rtn1_trans; [
+              apply SReturn_step
+            | assert (s' = s0) by (rewrite <- stack_eval in stackV; inversion stackV; reflexivity);
+              rewrite H; apply comp].
     + assert (IH : exists t sig phi D, ([(Lid_sub, s)], Gid_sub, BTrue) ->* ((t, <{ if b {s1}{s2} ; s0}>) :: D, sig, phi)
                                   /\ C = EvalStack G L D
                                   /\ Beval G L phi = true
                                   /\ G' = GComp G L sig
                                   /\ L' = LComp G L t)
       by (eapply IHclos_refl_trans_n1; reflexivity).
-      destruct IH as [t [sig [phi [D [comp [stackV [pc [gVal lVal]]]]]]]].
-      eexists. eexists. eexists. eexists. splits;
-       try (eapply Relation_Operators.rtn1_trans; [apply SIfTrue_step | apply comp]);
-       try (simpl; apply andb_true_iff; split);
-       try (rewrite <- Comp_subB; rewrite eval_compB; rewrite <- gVal; rewrite <- lVal);
-       try assumption;
-       try reflexivity.
+      solve_cases IH.
     + assert (IH : exists t sig phi D, ([(Lid_sub, s)], Gid_sub, BTrue) ->* ((t, <{ if b {s1}{s2} ; s0}>) :: D, sig, phi)
                                   /\ C = EvalStack G L D
                                   /\ Beval G L phi = true
                                   /\ G' = GComp G L sig
                                   /\ L' = LComp G L t)
       by (eapply IHclos_refl_trans_n1; reflexivity).
-      destruct IH as [t [sig [phi [D [comp [stackV [pc [gVal lVal]]]]]]]].
-      eexists. eexists. eexists. eexists. splits;
-       try (eapply Relation_Operators.rtn1_trans; [apply SIfFalse_step | apply comp]);
-       try (simpl; apply andb_true_iff; split);
-       try (apply negb_true_iff);
-       try (rewrite <- Comp_subB; rewrite eval_compB; rewrite <- gVal; rewrite <- lVal);
-       try assumption;
-       try reflexivity.
+      solve_cases IH.
     + assert (IH : exists t sig phi D, ([(Lid_sub, s)], Gid_sub, BTrue) ->* ((t, <{ while b {s0} ; s'0 }>) :: D, sig, phi)
                                   /\ C = EvalStack G L D
                                   /\ Beval G L phi = true
                                   /\ G' = GComp G L sig
                                   /\ L' = LComp G L t)
       by (eapply IHclos_refl_trans_n1; reflexivity).
-      destruct IH as [t [sig [phi [D [comp [stackV [pc [gVal lVal]]]]]]]].
-      eexists. eexists. eexists. eexists. splits;
-       try (eapply Relation_Operators.rtn1_trans; [apply SWhileTrue_step | apply comp]);
-       try (simpl; apply andb_true_iff; split);
-       try (rewrite <- Comp_subB; rewrite eval_compB; rewrite <- gVal; rewrite <- lVal);
-       try assumption;
-       try reflexivity.
+      solve_cases IH.
     + assert (IH : exists t sig phi D, ([(Lid_sub, s)], Gid_sub, BTrue) ->* ((t, <{ while b {s0} ; s'}>) :: D, sig, phi)
                                   /\ C = EvalStack G L D
                                   /\ Beval G L phi = true
                                   /\ G' = GComp G L sig
                                   /\ L' = LComp G L t)
       by (eapply IHclos_refl_trans_n1; reflexivity).
-      destruct IH as [t [sig [phi [D [comp [stackV [pc [gVal lVal]]]]]]]].
-      eexists. eexists. eexists. eexists. splits;
-       try (eapply Relation_Operators.rtn1_trans; [apply SWhileFalse_step | apply comp]);
-       try (simpl; apply andb_true_iff; split);
-       try (apply negb_true_iff);
-       try (rewrite <- Comp_subB; rewrite eval_compB; rewrite <- gVal; rewrite <- lVal);
-       try assumption;
-       try reflexivity.
+      solve_cases IH.
 Qed.
