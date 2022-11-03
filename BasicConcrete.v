@@ -19,7 +19,9 @@ From Coq Require Import Program.   (* for `dependent induction` *)
 From Coq Require Import Relations.
 
 From SymEx Require Import Expr.
+Import BasicExpr.
 From SymEx Require Import Maps.
+Import BasicMaps.
 
 Open Scope com_scope.
 

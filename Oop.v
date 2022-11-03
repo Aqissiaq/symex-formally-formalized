@@ -133,7 +133,7 @@ Definition TraceStep : Type := (Bexpr + (Heap * Class) + (Heap * Oexpr)).
 Definition pc : Bexpr -> TraceStep :=
   fun b => inl (inl b).
 Definition new : (Heap * Class) -> TraceStep :=
-  fun x => inl (inr x).
+*  fun x => inl (inr x).
 Definition asgn : (Heap * Oexpr) -> TraceStep := inr.
 
 Open Scope list_scope.

@@ -17,69 +17,11 @@ From Coq Require Import Relations.
 From Coq Require Import Lists.List.
 Import ListNotations.
 
-(*... actually I need to redo everything to account for local/global separation*)
-Definition LVar := string.
-Definition GVar := string.
+From SymEx Require Import Expr.
+Import ProcedureExpr.
 
-Inductive Aexpr : Type :=
-| AConst (n:nat)
-| AGVar (x:GVar)
-| ALVar (x:LVar)
-| APlus (a1 a2:Aexpr).
-
-Coercion AConst : nat >-> Aexpr.
-
-Inductive Bexpr : Type :=
-| BTrue
-| BFalse
-| BNot (b:Bexpr)
-| BAnd (b1 b2:Bexpr)
-| BLeq (a1 a2:Aexpr).
-
-Declare Custom Entry com.
-Declare Scope com_scope.
-
-Notation "<{ e }>" := e (at level 0, e custom com at level 99) : com_scope.
-Notation "( x )" := x (in custom com, x at level 99) : com_scope.
-Notation "x" := x (in custom com at level 0, x constr at level 0) : com_scope.
-Notation "x + y"   := (APlus x y) (in custom com at level 70, no associativity).
-Notation "x <= y"   := (BLeq x y) (in custom com at level 70, no associativity).
-Notation "'~' b"   := (BNot b) (in custom com at level 75, right associativity).
-Notation "x && y"  := (BAnd x y) (in custom com at level 80, left associativity).
-
-Open Scope com_scope.
-
-Definition update {E:Type} (s: string -> E) (x:string) (e:E) : string -> E :=
-  fun y => if String.eqb x y then e else s x.
-
-Notation "x '!->' v ';' m" := (update m x v) (at level 100, v at next level, right associativity).
-
-Definition empty_map {A:Type} (x:A) : string -> A := fun _ => x.
-Notation "'_' '!->' v" := (empty_map v) (at level 100, right associativity).
-
-(* substitions map to (Arithmetic) expressions*)
-Definition LSub := LVar -> Aexpr.
-Definition GSub := GVar -> Aexpr.
-
-Definition Gid_sub : GVar -> Aexpr := fun x => AGVar x.
-Definition Lid_sub : LVar -> Aexpr := fun x => ALVar x.
-
-Fixpoint Aapply (s:GVar -> Aexpr) (t:LVar -> Aexpr) (e:Aexpr) : Aexpr :=
-  match e with
-  | AConst n => AConst n
-  | AGVar x => s x
-  | ALVar x => t x
-  | APlus a1 a2 => APlus (Aapply s t a1) (Aapply s t a2)
-  end.
-
-Fixpoint Bapply  (s:GVar -> Aexpr) (t:LVar -> Aexpr) (e:Bexpr) : Bexpr :=
-  match e with
-  | BTrue => BTrue
-  | BFalse => BFalse
-  | BNot b => BNot (Bapply s t b)
-  | BAnd b1 b2 => BAnd (Bapply s t b1) (Bapply s t b2)
-  | BLeq a1 a2 => BLeq (Aapply s t a1) (Aapply s t a2)
-  end.
+From SymEx Require Import Maps.
+Import ProcedureMaps.
 
 Inductive Stmt : Type :=
 | SGAsgn (x:GVar) (e:Aexpr)
@@ -91,6 +33,8 @@ Inductive Stmt : Type :=
 | SReturn
   with Proc : Type :=
     | PDec (u:LVar) (s':Stmt).
+
+Open Scope com_scope.
 
 Notation "x :=G y"  :=
          (SGAsgn x y)
@@ -120,10 +64,9 @@ Notation "'proc' '(' u ')' '{' b '}'"  :=
              b at level 85, no associativity) : com_scope.
 
 (** Symbolic semantics *)
+Open Scope list_scope.
 
 Definition Sstack := list (LSub * Stmt).
-
-Open Scope list_scope.
 
 Definition SConfig : Type := Sstack * GSub * Bexpr.
 
@@ -157,6 +100,7 @@ Inductive Sstep : relation SConfig :=
 Definition multi_Sstep := clos_refl_trans_n1 _ Sstep.
 Notation " c '->*' c' " := (multi_Sstep c c') (at level 40).
 
+(* this is an unnecessary aside since GVar and LVar are disjoint by construction *)
 Fixpoint Ano_local (e:Aexpr) : bool :=
   match e with
   | AConst n => true
@@ -187,73 +131,6 @@ Fixpoint Sno_local (s:Stmt) : bool :=
 Definition is_initial (s:Stmt) := Sno_local s = true.
 
 (** Concrete semantics *)
-
-Definition GVal : Type := GVar -> nat.
-Definition LVal : Type := LVar -> nat.
-
-Definition LVal_e : LVal := fun _ => 0.
-Definition GVal_e : GVal := fun _ => 0.
-
-Fixpoint Aeval (G:GVal) (L:LVal) (e:Aexpr) : nat :=
-  match e with
-  | AConst n => n
-  | AGVar x => G x
-  | ALVar x => L x
-  | APlus a1 a2 => (Aeval G L a1) + (Aeval G L a2)
-  end.
-
-Fixpoint Beval (G:GVal) (L:LVal) (e:Bexpr) : bool :=
-  match e with
-  | BTrue => true
-  | BFalse => false
-  | BNot b => negb (Beval G L b)
-  | BAnd b1 b2 => (Beval G L b1) && (Beval G L b2)
-  | BLeq a1 a2 => (Aeval G L a1) <=? (Aeval G L a2)
-  end.
-
-(** We can update a valuation with a substitution by composition *)
-
-Fixpoint Aeval_comp (G:GVal) (L:LVal) (s:GVar -> Aexpr) (t:LVar -> Aexpr) (e:Aexpr) : nat :=
-  match e with
-  | AConst n => n
-  | AGVar x => Aeval G L (s x)
-  | ALVar x => Aeval G L (t x)
-  | APlus a1 a2 => (Aeval_comp G L s t a1) + (Aeval_comp G L s t a2)
-  end.
-
-Fixpoint Beval_comp (G:GVal) (L:LVal) (s:GVar -> Aexpr) (t:LVar -> Aexpr) (e:Bexpr) : bool :=
-  match e with
-  | BTrue => true
-  | BFalse => false
-  | BNot b => negb (Beval_comp G L s t b)
-  | BAnd b1 b2 => (Beval_comp G L s t b1) && (Beval_comp G L s t b2)
-  | BLeq a1 a2 => (Aeval_comp G L s t a1) <=? (Aeval_comp G L s t a2)
-  end.
-
-Definition GComp (G:GVal) (L:LVal) (s:GVar -> Aexpr) : GVal :=
-  fun x => Aeval G L (s x).
-Definition LComp (G:GVal) (L:LVal) (t:LVar -> Aexpr) : LVal :=
-  fun x => Aeval G L (t x).
-
-Lemma eval_comp : forall G L s t e,
-    Aeval_comp G L s t e = Aeval (GComp G L s) (LComp G L t) e.
-Proof.
-  induction e; simpl;
-   try (rewrite IHe1; rewrite IHe2);
-   reflexivity.
-Qed.
-
-Lemma eval_compB : forall G L s t e,
-    Beval_comp G L s t e = Beval (GComp G L s) (LComp G L t) e.
-Proof.
-  induction e; simpl;
-   try (rewrite IHe);
-   try (rewrite IHe1; rewrite IHe2);
-   repeat (rewrite eval_comp);
-   reflexivity.
-Qed.
-
-(** might need some substitution / composition / asgn_sound lemmas **)
 
 Definition Cstack := list (LVal * Stmt).
 Definition CConfig : Type := Cstack * GVal.
@@ -315,6 +192,24 @@ Proof. intros. extensionality x. unfold LComp. reflexivity. Qed.
 Lemma GComp_id : forall G L,
     GComp G L Gid_sub = G.
 Proof. intros. extensionality x. unfold GComp. reflexivity. Qed.
+
+Lemma eval_comp : forall G L s t e,
+    Aeval_comp G L s t e = Aeval (GComp G L s) (LComp G L t) e.
+Proof.
+  induction e; simpl;
+   try (rewrite IHe1; rewrite IHe2);
+   reflexivity.
+Qed.
+
+Lemma eval_compB : forall G L s t e,
+    Beval_comp G L s t e = Beval (GComp G L s) (LComp G L t) e.
+Proof.
+  induction e; simpl;
+   try (rewrite IHe);
+   try (rewrite IHe1; rewrite IHe2);
+   repeat (rewrite eval_comp);
+   reflexivity.
+Qed.
 
 Lemma Comp_sub : forall G L s t e,
     Aeval_comp G L s t e = Aeval G L (Aapply s t e).
