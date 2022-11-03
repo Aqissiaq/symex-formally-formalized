@@ -141,13 +141,17 @@ Inductive Sstep : relation SConfig :=
 | SReturn_step : forall t D sig phi,
     ((t, <{ return }>) :: D, sig, phi) ->s ( D , sig, phi)
 | SIfTrue_step : forall t b s1 s2 s D sig phi,
-    ((t, <{ if b {s1} {s2} ; s }>) :: D, sig, phi) ->s ((t, <{ s1 ; s }>) :: D, sig, BAnd phi (Bapply sig t b))
+    ((t, <{ if b {s1} {s2} ; s }>) :: D, sig, phi)
+      ->s ((t, <{ s1 ; s }>) :: D, sig, BAnd phi (Bapply sig t b))
 | SIfFalse_step : forall t b s1 s2 s D sig phi,
-    ((t, <{ if b {s1} {s2} ; s }>) :: D, sig, phi) ->s ((t, <{ s2 ; s }>) :: D, sig, BAnd phi (BNot (Bapply sig t b)))
+    ((t, <{ if b {s1} {s2} ; s }>) :: D, sig, phi)
+      ->s ((t, <{ s2 ; s }>) :: D, sig, BAnd phi (BNot (Bapply sig t b)))
 | SWhileTrue_step : forall t b s s' D sig phi,
-    ((t, <{ while b {s} ; s' }>) :: D, sig, phi) ->s ((t, <{ s ; while b {s} ; s' }>) :: D, sig, BAnd phi (Bapply sig t b))
+    ((t, <{ while b {s} ; s' }>) :: D, sig, phi)
+      ->s ((t, <{ s ; while b {s} ; s' }>) :: D, sig, BAnd phi (Bapply sig t b))
 | SWhileFalse_step : forall t b s s' D sig phi,
-    ((t, <{ while b {s} ; s' }>) :: D, sig, phi) ->s ((t, s') :: D, sig, BAnd phi (BNot (Bapply sig t b)))
+    ((t, <{ while b {s} ; s' }>) :: D, sig, phi)
+      ->s ((t, s') :: D, sig, BAnd phi (BNot (Bapply sig t b)))
   where " c '->s' c' " := (Sstep c c').
 
 Definition multi_Sstep := clos_refl_trans_n1 _ Sstep.
@@ -236,7 +240,7 @@ Lemma eval_comp : forall G L s t e,
 Proof.
   induction e; simpl;
    try (rewrite IHe1; rewrite IHe2);
-   try reflexivity.
+   reflexivity.
 Qed.
 
 Lemma eval_compB : forall G L s t e,
@@ -246,7 +250,7 @@ Proof.
    try (rewrite IHe);
    try (rewrite IHe1; rewrite IHe2);
    repeat (rewrite eval_comp);
-   try reflexivity.
+   reflexivity.
 Qed.
 
 (** might need some substitution / composition / asgn_sound lemmas **)
