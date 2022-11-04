@@ -34,7 +34,6 @@ Inductive Stmt : Type :=
   with Proc : Type :=
     | PDec (u:LVar) (s':Stmt).
 
-Open Scope com_scope.
 
 Notation "x :=G y"  :=
          (SGAsgn x y)
@@ -64,6 +63,7 @@ Notation "'proc' '(' u ')' '{' b '}'"  :=
              b at level 85, no associativity) : com_scope.
 
 (** Symbolic semantics *)
+Open Scope com_scope.
 Open Scope list_scope.
 
 Definition Sstack := list (LSub * Stmt).

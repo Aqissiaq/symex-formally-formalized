@@ -4,4 +4,5 @@ Expr.v
 Maps.v
 BasicConcrete.v
 Recursion.v
+TraceSemantics.v
 #Oop.v
