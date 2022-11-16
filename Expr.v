@@ -51,6 +51,8 @@ Module ProcedureExpr.
   | APlus (a1 a2:Aexpr).
 
   Coercion AConst : nat >-> Aexpr.
+  Coercion AGVar : GVar >-> Aexpr.
+  Coercion ALVar : LVar >-> Aexpr.
 
   Inductive Bexpr : Type :=
   | BTrue

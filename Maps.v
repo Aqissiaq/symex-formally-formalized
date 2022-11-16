@@ -143,6 +143,31 @@ Module ProcedureMaps.
     | BLeq a1 a2 => BLeq (Aapply s t a1) (Aapply s t a2)
     end.
 
+  Lemma Aapply_id : forall e,
+      Aapply Gid_sub Lid_sub e = e.
+  Proof.
+    induction e; try reflexivity.
+    simpl. rewrite IHe1. rewrite IHe2. reflexivity.
+  Qed.
+
+  Lemma Bapply_id : forall e,
+      Bapply Gid_sub Lid_sub e = e.
+  Proof.
+    induction e; simpl;
+      try (rewrite IHe);
+      try (rewrite IHe1; rewrite IHe2);
+      try (repeat rewrite Aapply_id);
+      try reflexivity.
+  Qed.
+
+  Lemma L_single_update : forall X Y,
+      (X !-> Y ; Lid_sub) X = Y.
+  Proof. intros. unfold update. rewrite String.eqb_refl. reflexivity. Qed.
+
+  Lemma G_single_update : forall X Y,
+      (X !-> Y ; Gid_sub) X = Y.
+  Proof. intros. unfold update. rewrite String.eqb_refl. reflexivity. Qed.
+
   Definition GVal : Type := GVar -> nat.
   Definition LVal : Type := LVar -> nat.
 
