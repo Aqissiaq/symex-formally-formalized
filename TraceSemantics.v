@@ -42,7 +42,7 @@ Fixpoint Stmt_sub (s:Stmt) (u y:LVar) : Stmt :=
   | SLAsgn x e => SLAsgn (if u =? x then y else x) (Aapply Gid_sub t e)
   | SProc P e => SProc P (Aapply Gid_sub t e)
   | SSeq s1 s2 => SSeq (Stmt_sub s1 u y) (Stmt_sub s2 u y)
-  | SIf b s1 s2 => SIf (Bapply Gid_sub t b) (Stmt_sub s1 u y) (Stmt_sub s1 u y)
+  | SIf b s1 s2 => SIf (Bapply Gid_sub t b) (Stmt_sub s1 u y) (Stmt_sub s2 u y)
   | SWhile b s => SWhile (Bapply Gid_sub t b) (Stmt_sub s u y)
   | SReturn => SReturn
   end.
@@ -56,7 +56,7 @@ Open Scope list_scope.
 
 Definition STrace_step : Type := (Bexpr + (GVar * Aexpr) + (LVar * Aexpr)).
 
-Definition pc : Bexpr -> STrace_step := fun x => inl (inl x).
+Definition cond  : Bexpr -> STrace_step := fun x => inl (inl x).
 Definition asgnG : GVar -> Aexpr -> STrace_step := fun x e => inl (inr (x, e)).
 Definition asgnL : LVar -> Aexpr -> STrace_step := fun x e => inr (x, e).
 
@@ -76,13 +76,13 @@ Inductive Sstep : relation SConfig  :=
 | SReturn_step : forall s t,
     (<{ return ; s }>, t) ->s (s, t)
 | SIfTrue_step : forall b s1 s2 s t,
-    (<{ if b {s1}{s2} ; s}>, t) ->s (<{ s1 ; s }>, t ++ [pc b])
+    (<{ if b {s1}{s2} ; s}>, t) ->s (<{ s1 ; s }>, t ++ [cond  b])
 | SIfFalse_step : forall b s1 s2 s t,
-    (<{ if b {s1}{s2} ; s}>, t) ->s (<{ s2 ; s }>, t ++ [pc (BNot b)])
+    (<{ if b {s1}{s2} ; s}>, t) ->s (<{ s2 ; s }>, t ++ [cond  (BNot b)])
 | SWhileTrue_step : forall b s s' t,
-    (<{ while b {s} ; s' }>, t) ->s (<{ s ; while b {s} ; s' }>, t ++ [pc b])
+    (<{ while b {s} ; s' }>, t) ->s (<{ s ; while b {s} ; s' }>, t ++ [cond  b])
 | SWhileFalse_step : forall b s s' t,
-    (<{ while b {s} ; s' }>, t) ->s (s', t ++ [pc (BNot b)])
+    (<{ while b {s} ; s' }>, t) ->s (s', t ++ [cond  (BNot b)])
   where " c '->s' c' " := (Sstep c c').
 
 Definition multi_Sstep := clos_refl_trans_n1 _ Sstep.
@@ -234,3 +234,105 @@ Proof.
   eapply Relation_Operators.rtn1_trans. apply step1.
   apply rtn1_refl.
 Qed.
+
+(** Correctness *)
+
+Fixpoint pc (t:STrace) : Bexpr :=
+  match t with
+  | [] => BTrue
+  | inr (x, e) :: t' => pc t'
+  | inl (inr (x, e)) :: t' => pc t'
+  | inl (inl p) :: t' => BAnd p (pc t')
+  end.
+
+Definition accG_subst (x:GVar) : option Aexpr -> STrace_step -> option Aexpr :=
+  fun acc t => match t with
+         | inl (inl _) => acc
+         | inl (inr (y, e)) => if x =? y then Some e else acc
+         | inr _ => acc
+      end.
+
+Definition accL_subst (x:LVar) : option Aexpr -> STrace_step -> option Aexpr :=
+  fun acc t => match t with
+         | inl _ => acc
+         | inr (y, e) => if x =? y then Some e else acc
+      end.
+
+Definition acc_GSubst' (t:STrace) (x:GVar) : option Aexpr :=
+  fold_left (accG_subst x) t None.
+
+Definition acc_LSubst' (t:STrace) (x:LVar) : option Aexpr :=
+  fold_left (accL_subst x) t None.
+
+(*Cheated totality again*)
+Definition acc_GSubst (t:STrace) : GSub :=
+  fun x => match (acc_GSubst' t x) with
+     | None => 0
+     | Some e => e
+  end.
+
+Definition acc_LSubst (t:STrace) : LSub :=
+  fun x => match (acc_LSubst' t x) with
+     | None => 0
+     | Some e => e
+  end.
+
+Ltac unfoldsG := try unfold acc_GVal;
+                 try unfold acc_GVal';
+                 try unfold GComp;
+                 try unfold acc_GSubst;
+                 try unfold acc_GSubst';
+                 try unfold accG_subst.
+
+Ltac unfoldsL := try unfold acc_LVal;
+                 try unfold acc_LVal';
+                 try unfold LComp;
+                 try unfold acc_LSubst;
+                 try unfold acc_LSubst';
+                 try unfold accL_subst.
+
+Lemma acc_GSubst_ignores_pc : forall b t,
+    acc_GSubst (inl (inl b) :: t) = acc_GSubst t.
+Proof. intros. unfoldsG. reflexivity. Qed.
+
+Lemma acc_LSubst_ignores_pc : forall b t,
+    acc_LSubst (inl (inl b) :: t) = acc_LSubst t.
+Proof. intros. unfoldsL. reflexivity. Qed.
+
+Lemma acc_LSubst_G : forall x e t,
+    acc_LSubst (inl (inr (x,e)) :: t) = acc_LSubst t.
+Proof. intros. unfoldsL. reflexivity. Qed.
+
+Lemma acc_GSubst_L : forall x e t,
+    acc_GSubst (inr (x,e) :: t) = acc_GSubst t.
+Proof. intros. unfoldsG. reflexivity. Qed.
+
+Theorem correctness : forall t G0 L0 x,
+    Beval G0 L0 (pc t) = true ->
+    exists t', acc_GVal t' x = GComp G0 L0 (acc_GSubst t) x
+          /\ acc_LVal t' x = LComp G0 L0 (acc_LSubst t) x.
+Proof.
+  intros. induction t.
+  - exists []. split.
+    + unfoldsG. simpl. reflexivity.
+    + unfoldsL. simpl. reflexivity.
+  - dependent destruction a; try (dependent destruction s); try (dependent destruction p).
+    (* branching *)
+    + inversion H; subst. apply andb_true_iff in H1. destruct H1.
+      destruct (IHt H1) as [t' [IHG IHL]]. exists t'. split.
+      * rewrite IHG. rewrite acc_GSubst_ignores_pc. reflexivity.
+      * rewrite IHL. rewrite acc_LSubst_ignores_pc. reflexivity.
+    (* global assignment *)
+    + inversion H; subst. destruct (IHt H1) as [t' [IHG IHL]].
+      exists (t' ++ [inl (g, Aeval_t t' a)]). split.
+      * admit. (* some assignment-soundness*)
+      * rewrite acc_LSubst_G. rewrite <- IHL. unfold acc_LVal in *. unfold acc_LVal' in *.
+        rewrite fold_left_app. simpl. rewrite IHL. reflexivity.
+    (* local assignment *)
+    + inversion H; subst. destruct (IHt H1) as [t' [IHG IHL]].
+      exists (t' ++ [inr (l, Aeval_t t' a)]). split.
+      * rewrite acc_GSubst_L. rewrite <- IHG. unfold acc_GVal in *. unfold acc_GVal' in *.
+        rewrite fold_left_app. simpl. rewrite IHG. reflexivity.
+        * admit. (* local assignment soundness *)
+          all: fail "goals remaining".
+Admitted.
