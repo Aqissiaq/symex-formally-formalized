@@ -100,36 +100,6 @@ Inductive Sstep : relation SConfig :=
 Definition multi_Sstep := clos_refl_trans_n1 _ Sstep.
 Notation " c '->*' c' " := (multi_Sstep c c') (at level 40).
 
-(* this is an unnecessary aside since GVar and LVar are disjoint by construction *)
-Fixpoint Ano_local (e:Aexpr) : bool :=
-  match e with
-  | AConst n => true
-  | AGVar x => true
-  | ALVar x => false
-  | APlus a1 a2 => Ano_local a1 && Ano_local a2
-  end.
-
-Fixpoint Bno_local (phi:Bexpr) : bool :=
-  match phi with
-  | BTrue => true
-  | BFalse => true
-  | BNot b => Bno_local b
-  | BAnd b1 b2 => Bno_local b1 && Bno_local b2
-  | BLeq a1 a2 => Ano_local a1 && Ano_local a2
-  end.
-
-Fixpoint Sno_local (s:Stmt) : bool :=
-  match s with
-  | SGAsgn _ a => Ano_local a
-  | SLAsgn _ _ => false
-  | SSeq s1 s2 => Sno_local s1 && Sno_local s2
-  | SIf b s1 s2 => Bno_local b && Sno_local s1 && Sno_local s2
-  | SWhile b s => Bno_local b && Sno_local s
-  | _ => true
-  end.
-
-Definition is_initial (s:Stmt) := Sno_local s = true.
-
 (** Concrete semantics *)
 
 Definition Cstack := list (LVal * Stmt).
@@ -184,66 +154,6 @@ Inductive Cstep : relation CConfig :=
 
 Definition multi_Cstep := clos_refl_trans_n1 _ Cstep.
 Notation " c '=>*' c' " := (multi_Cstep c c') (at level 40).
-
-Lemma LComp_id : forall G L,
-    LComp G L Lid_sub = L.
-Proof. intros. extensionality x. unfold LComp. reflexivity. Qed.
-
-Lemma GComp_id : forall G L,
-    GComp G L Gid_sub = G.
-Proof. intros. extensionality x. unfold GComp. reflexivity. Qed.
-
-Lemma eval_comp : forall G L s t e,
-    Aeval_comp G L s t e = Aeval (GComp G L s) (LComp G L t) e.
-Proof.
-  induction e; simpl;
-   try (rewrite IHe1; rewrite IHe2);
-   reflexivity.
-Qed.
-
-Lemma eval_compB : forall G L s t e,
-    Beval_comp G L s t e = Beval (GComp G L s) (LComp G L t) e.
-Proof.
-  induction e; simpl;
-   try (rewrite IHe);
-   try (rewrite IHe1; rewrite IHe2);
-   repeat (rewrite eval_comp);
-   reflexivity.
-Qed.
-
-Lemma Comp_sub : forall G L s t e,
-    Aeval_comp G L s t e = Aeval G L (Aapply s t e).
-Proof.
-  induction e; simpl; try reflexivity.
-   try (rewrite IHe1; rewrite IHe2). reflexivity.
-Qed.
-
-Lemma Comp_subB : forall G L s t e,
-    Beval_comp G L s t e = Beval G L (Bapply s t e).
-Proof.
-  induction e; simpl;
-  try (rewrite IHe);
-   try (rewrite IHe1; rewrite IHe2);
-   repeat (rewrite Comp_sub);
-   reflexivity.
-Qed.
-
-(* Corollary 3.4 *)
-Lemma Lasgn_sound : forall G L s t x e,
-    LComp G L (update t x (Aapply s t e)) = update (LComp G L t) x (Aeval_comp G L s t e).
-Proof.
-  intros. extensionality y.
-  unfold LComp. unfold update. destruct (x =? y)%string;
-  try rewrite Comp_sub; reflexivity.
-Qed.
-
-Lemma Gasgn_sound : forall G L s t x e,
-    GComp G L (update s x (Aapply s t e)) = update (GComp G L s) x (Aeval_comp G L s t e).
-Proof.
-  intros. extensionality y.
-  unfold GComp. unfold update. destruct (x =? y)%string;
-  try (rewrite Comp_sub); reflexivity.
-Qed.
 
 (* note: we turn out not to need the fact that s is initial *)
 (* presumably because separation of local and global vars is enforced at the type level

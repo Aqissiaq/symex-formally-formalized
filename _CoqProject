@@ -2,6 +2,8 @@
 
 Expr.v
 Maps.v
+Traces.v
+
 BasicConcrete.v
 Recursion.v
 TraceSemantics.v

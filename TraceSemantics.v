@@ -19,8 +19,12 @@ From SymEx Require Import Maps.
 Import ProcedureMaps.
 
 From SymEx Require Import Recursion.
+
+From SymEx Require Import Traces.
+
 Open Scope com_scope.
 Open Scope string_scope.
+Open Scope trace_scope.
 
 (** Symbolic semantics *)
 
@@ -45,26 +49,6 @@ Fixpoint Stmt_sub (s:Stmt) (u y:LVar) : Stmt :=
   | SReturn => SReturn
   end.
 
-Definition X : GVar := "X".
-Definition Y : LVar := "Y".
-Definition U : LVar := "U".
-
-(** Right-extended lists, move to its own file if it works *)
-
-Inductive trace (A : Type) : Type :=
-| Tnil : trace A
-| Tcons : trace A -> A -> trace A.
-
-Arguments Tnil {A}.
-Arguments Tcons {A} a l.
-
-Declare Scope trace_scope.
-Infix "::" := Tcons (at level 60, right associativity) : trace_scope.
-Notation "[ ]" := Tnil (format "[ ]") : trace_scope.
-Notation "[ x ]" := (Tcons Tnil x) : trace_scope.
-Notation "[ x ; .. ; y ; z ]" := (Tcons (Tcons .. (Tcons Tnil x) .. y) z)
-  (format "[ '[' x ; '/' .. ; '/' y ; '/' z ']' ]") : list_scope.
-Open Scope trace_scope.
 
 Definition STrace_step : Type := (Bexpr + (GVar * Aexpr) + (LVar * Aexpr)).
 
@@ -158,6 +142,12 @@ Inductive Cstep : relation CConfig :=
 Definition multi_Cstep := clos_refl_trans_n1 _ Cstep.
 Notation " c '=>*' c' " := (multi_Cstep c c') (at level 40).
 
+(** an aside with examples to verify semantics *)
+
+Definition X : GVar := "X".
+Definition Y : LVar := "Y".
+Definition U : LVar := "U".
+
 Example test_program : Stmt :=
   <{proc(U){ U :=L U + 1;
               X :=G U + 2;
@@ -232,13 +222,13 @@ Fixpoint pc (t:STrace) : Bexpr :=
 (*Cheated totality again*)
 Fixpoint acc_GSubst (t:STrace) : GSub :=
   match t with
-  | [] => (_ !-> 0) (* I think this needs to be 0 to work with valuations*)
+  | [] => (_ !-> 0) (* this needs to be 0 to work with valuations*)
   | t' :: inl (inr (x, e)) => update (acc_GSubst t') x (Aapply (acc_GSubst t') (acc_LSubst t') e)
   | t' :: _ => acc_GSubst t'
   end
 with acc_LSubst (t:STrace) : LSub :=
   match t with
-  | [] => (_ !-> 0) (* I think this needs to be 0 to work with valuations*)
+  | [] => (_ !-> 0) (* this needs to be 0 to work with valuations*)
   | t' :: inr (x, e) => update (acc_LSubst t') x (Aapply (acc_GSubst t') (acc_LSubst t') e)
   | t' :: _ => acc_LSubst t'
   end.

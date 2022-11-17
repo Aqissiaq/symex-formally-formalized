@@ -211,4 +211,64 @@ Module ProcedureMaps.
     fun x => Aeval G L (s x).
   Definition LComp (G:GVal) (L:LVal) (t:LVar -> Aexpr) : LVal :=
     fun x => Aeval G L (t x).
+
+Lemma LComp_id : forall G L,
+    LComp G L Lid_sub = L.
+Proof. intros. extensionality x. unfold LComp. reflexivity. Qed.
+
+Lemma GComp_id : forall G L,
+    GComp G L Gid_sub = G.
+Proof. intros. extensionality x. unfold GComp. reflexivity. Qed.
+
+Lemma eval_comp : forall G L s t e,
+    Aeval_comp G L s t e = Aeval (GComp G L s) (LComp G L t) e.
+Proof.
+  induction e; simpl;
+   try (rewrite IHe1; rewrite IHe2);
+   reflexivity.
+Qed.
+
+Lemma eval_compB : forall G L s t e,
+    Beval_comp G L s t e = Beval (GComp G L s) (LComp G L t) e.
+Proof.
+  induction e; simpl;
+   try (rewrite IHe);
+   try (rewrite IHe1; rewrite IHe2);
+   repeat (rewrite eval_comp);
+   reflexivity.
+Qed.
+
+Lemma Comp_sub : forall G L s t e,
+    Aeval_comp G L s t e = Aeval G L (Aapply s t e).
+Proof.
+  induction e; simpl; try reflexivity.
+   try (rewrite IHe1; rewrite IHe2). reflexivity.
+Qed.
+
+Lemma Comp_subB : forall G L s t e,
+    Beval_comp G L s t e = Beval G L (Bapply s t e).
+Proof.
+  induction e; simpl;
+  try (rewrite IHe);
+   try (rewrite IHe1; rewrite IHe2);
+   repeat (rewrite Comp_sub);
+   reflexivity.
+Qed.
+
+(* Corollary 3.4 *)
+Lemma Lasgn_sound : forall G L s t x e,
+    LComp G L (update t x (Aapply s t e)) = update (LComp G L t) x (Aeval_comp G L s t e).
+Proof.
+  intros. extensionality y.
+  unfold LComp. unfold update. destruct (x =? y)%string;
+  try rewrite Comp_sub; reflexivity.
+Qed.
+
+Lemma Gasgn_sound : forall G L s t x e,
+    GComp G L (update s x (Aapply s t e)) = update (GComp G L s) x (Aeval_comp G L s t e).
+Proof.
+  intros. extensionality y.
+  unfold GComp. unfold update. destruct (x =? y)%string;
+  try (rewrite Comp_sub); reflexivity.
+Qed.
 End ProcedureMaps.
