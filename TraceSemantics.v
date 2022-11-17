@@ -246,9 +246,8 @@ with acc_LSubst (t:STrace) : LSub :=
 Theorem correctness : forall t G0 L0,
     Beval G0 L0 (pc t) = true ->
     exists t',
-      (acc_GVal t' = GComp G0 L0 (acc_GSubst t)
-       /\ acc_LVal t' = LComp G0 L0 (acc_LSubst t)).
-(* extensional equality of valuations *)
+      acc_GVal t' = GComp G0 L0 (acc_GSubst t)
+      /\ acc_LVal t' = LComp G0 L0 (acc_LSubst t).
 Proof.
   intros. induction t.
   - exists []. split; reflexivity.
@@ -268,4 +267,40 @@ Proof.
       * simpl. assumption.
       * simpl. rewrite Lasgn_sound. rewrite eval_comp.
         rewrite <- IHG. rewrite <- IHL. unfold Aeval_t. reflexivity.
+Qed.
+
+Ltac splits := repeat (try split).
+
+Lemma Gcomp_update_comm : forall G L x (v:Val) s,
+    GComp G L (update s x (AConst v)) = update (GComp G L s) x v.
+Proof.
+  intros. extensionality y.
+  unfold GComp. unfold update. destruct (x =? y); simpl; reflexivity.
+Qed.
+
+Lemma Lcomp_update_comm : forall G L x (v:Val) s,
+    LComp G L (update s x (AConst v)) = update (LComp G L s) x v.
+Proof.
+  intros. extensionality y.
+  unfold LComp. unfold update. destruct (x =? y); simpl; reflexivity.
+Qed.
+
+Theorem completeness : forall (t:CTrace) G0 L0,
+  exists (t':STrace), Beval G0 L0 (pc t') = true
+                 /\ GComp G0 L0 (acc_GSubst t') = acc_GVal t
+                 /\ LComp G0 L0 (acc_LSubst t') = acc_LVal t.
+Proof.
+  intros. induction t.
+  - exists []. splits.
+  - dependent destruction a; destruct p.
+    + destruct IHt as [t' [IHpc [IHG IHL]]].
+      exists (t' :: asgnG g (AConst v)). splits; simpl.
+      * assumption.
+      * simpl. rewrite <- IHG. rewrite Gcomp_update_comm. reflexivity.
+      * assumption.
+    + destruct IHt as [t' [IHpc [IHG IHL]]].
+      exists (t' :: asgnL l (AConst v)). splits; simpl.
+      * assumption.
+      * assumption.
+      * simpl. rewrite Lcomp_update_comm. rewrite <- IHL. reflexivity.
 Qed.
