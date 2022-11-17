@@ -248,14 +248,14 @@ Fixpoint pc (t:STrace) : Bexpr :=
 Definition accG_subst (x:GVar) : option Aexpr -> STrace_step -> option Aexpr :=
   fun acc t => match t with
          | inl (inl _) => acc
-         | inl (inr (y, e)) => if x =? y then Some e else acc
+         | inl (inr (y, e)) => if y =? x then Some e else acc
          | inr _ => acc
       end.
 
 Definition accL_subst (x:LVar) : option Aexpr -> STrace_step -> option Aexpr :=
   fun acc t => match t with
          | inl _ => acc
-         | inr (y, e) => if x =? y then Some e else acc
+         | inr (y, e) => if y =? x then Some e else acc
       end.
 
 Definition acc_GSubst' (t:STrace) (x:GVar) : option Aexpr :=
@@ -283,6 +283,13 @@ Ltac unfoldsG := try unfold acc_GVal;
                  try unfold acc_GSubst;
                  try unfold acc_GSubst';
                  try unfold accG_subst.
+
+Ltac unfoldsG' H := try unfold acc_GVal in H;
+                 try unfold acc_GVal' in H;
+                 try unfold GComp in H;
+                 try unfold acc_GSubst in H;
+                 try unfold acc_GSubst' in H;
+                 try unfold accG_subst in H.
 
 Ltac unfoldsL := try unfold acc_LVal;
                  try unfold acc_LVal';
@@ -324,10 +331,11 @@ Proof.
       * rewrite IHL. rewrite acc_LSubst_ignores_pc. reflexivity.
     (* global assignment *)
     + inversion H; subst. destruct (IHt H1) as [t' [IHG IHL]].
-      exists (t' ++ [inl (g, Aeval_t t' a)]). split.
-      * admit. (* some assignment-soundness*)
+      exists (inl (g, Aeval_t t' a) :: t'). split.
+      * unfoldsG. unfoldsG' IHG. simpl in *. rewrite eqb_sym. destruct (g =? x).
+        **
       * rewrite acc_LSubst_G. rewrite <- IHL. unfold acc_LVal in *. unfold acc_LVal' in *.
-        rewrite fold_left_app. simpl. rewrite IHL. reflexivity.
+        simpl. rewrite IHL. reflexivity.
     (* local assignment *)
     + inversion H; subst. destruct (IHt H1) as [t' [IHG IHL]].
       exists (t' ++ [inr (l, Aeval_t t' a)]). split.
