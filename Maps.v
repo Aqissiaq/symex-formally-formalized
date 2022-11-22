@@ -12,13 +12,34 @@ From Coq Require Import Logic.FunctionalExtensionality. (* for equality of subst
 
 From SymEx Require Import Expr.
 
-Definition update {E:Type} (s: string -> E) (x:string) (e:E) : string -> E :=
-  fun y => if String.eqb x y then e else s x.
+(** Basic definitions and lemmas from PLF *)
+
+Definition total_map (A : Type) := string -> A.
+
+Definition update {E:Type} (s: total_map E) (x:string) (e:E) : total_map E :=
+  fun y => if String.eqb x y then e else s y.
 
 Notation "x '!->' v ';' m" := (update m x v) (at level 100, v at next level, right associativity).
 
-Definition empty_map {A:Type} (x:A) : string -> A := fun _ => x.
+Definition empty_map {A:Type} (x:A) : total_map A := fun _ => x.
 Notation "'_' '!->' v" := (empty_map v) (at level 100, right associativity).
+
+Lemma apply_empty : forall (A : Type) (x : string) (v : A),
+    (_ !-> v) x = v.
+Proof. intros. unfold empty_map. reflexivity. Qed.
+
+Lemma update_eq : forall (A : Type) (m : total_map A) x v,
+  (x !-> v ; m) x = v.
+Proof. intros. unfold update. rewrite String.eqb_refl. reflexivity. Qed.
+
+Theorem update_neq : forall (A : Type) (m : total_map A) x y v,
+    x <> y ->
+    (x !-> v ; m) y = m y.
+Proof.
+  intros. unfold update. rewrite <- String.eqb_neq in H. destruct (x =? y)%string.
+  - discriminate.
+  - reflexivity.
+Qed.
 
 Module BasicMaps.
   Import BasicExpr.
