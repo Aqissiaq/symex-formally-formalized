@@ -51,44 +51,67 @@ Definition STrace := trace STrace_step.
 Fixpoint acc_GSubst (G:GSub) (L:LSub) (t:STrace) : GSub :=
   match t with
   | [] => G
-  | t' :: inl (inr (x, e)) => update (acc_GSubst G L t') x (Aapply (acc_GSubst G L t') (acc_LSubst G L t') e)
+  | t' :: inl (inr (x, e)) => let l := acc_LSubst G L t' in
+                            let g := acc_GSubst G L t' in
+                            (x !-> Aapply g l e ; g)
   | t' :: _ => acc_GSubst G L t'
   end
 with acc_LSubst (G:GSub) (L:LSub) (t:STrace) : LSub :=
   match t with
   | [] => L
-  | t' :: inr (x, e) => update (acc_LSubst G L t') x (Aapply (acc_GSubst G L t') (acc_LSubst G L t') e)
+  | t' :: inr (x, e) => let l := acc_LSubst G L t' in
+                      let g := acc_GSubst G L t' in
+                      (x !-> Aapply g l e ; l)
   | t' :: _ => acc_LSubst G L t'
   end.
 
+Definition acc_GSubst_id := acc_GSubst Gid_sub Lid_sub.
+Definition acc_LSubst_id := acc_LSubst Gid_sub Lid_sub.
+
+Definition X : GVar := "X".
+Definition Y : GVar := "Y".
+Definition Z : GVar := "Z".
+
+Definition A : LVar := "A".
+Definition B : LVar := "B".
+Definition C : LVar := "C".
+
 Definition Aapply_t : STrace -> Aexpr -> Aexpr :=
-fun t e => Aapply (acc_GSubst Gid_sub Lid_sub t) (acc_LSubst Gid_sub Lid_sub t) e.
+  fun t e => Aapply (acc_GSubst_id t) (acc_LSubst_id t) e.
 
 Definition Bapply_t : STrace -> Bexpr -> Bexpr :=
-fun t e => Bapply (acc_GSubst Gid_sub Lid_sub t) (acc_LSubst Gid_sub Lid_sub t) e.
+  fun t e => Bapply (acc_GSubst_id t) (acc_LSubst_id t) e.
+
+Fixpoint pc (t:STrace) : Bexpr :=
+  match t with
+  | [] => BTrue
+  | t' :: inr _ => pc t'
+  | t' :: inl (inr _) => pc t'
+  | t' :: inl (inl p) => BAnd (Bapply_t t' p) (pc t')
+  end.
 
 Definition SConfig : Type := Stmt * STrace.
 
 Reserved Notation " c '->s' c' " (at level 40).
 Inductive Sstep : relation SConfig  :=
 | SGAsgn_step : forall x e s t,
-    (<{ x :=G e ; s }>, t) ->s (s, (t :: asgnG x (Aapply_t t e)))
+    (<{ x :=G e ; s }>, t) ->s (s, (t :: asgnG x e))
 | SLAsgn_step : forall x e s t,
-    (<{ x :=L e ; s }>, t) ->s (s, t :: asgnL x (Aapply_t t e))
+    (<{ x :=L e ; s }>, t) ->s (s, t :: asgnL x e)
 | SProc_step : forall (t:STrace) u y body e s t,
     (* "y fresh", somehow *)
-    (<{ proc(u){body}(e) ; s }>, t) ->s (SSeq (Stmt_sub body u y) s, t :: asgnL y (Aapply_t t e))
+    (<{ proc(u){body}(e) ; s }>, t) ->s (SSeq (Stmt_sub body u y) s, t :: asgnL y e)
 | SReturn_step : forall s t,
     (<{ return ; s }>, t) ->s (s, t)
 | SIfTrue_step : forall b s1 s2 s t,
-    (<{ if b {s1}{s2} ; s}>, t) ->s (<{ s1 ; s }>, t :: cond  (Bapply_t t b))
+    (<{ if b {s1}{s2} ; s}>, t) ->s (<{ s1 ; s }>, t :: cond b)
 | SIfFalse_step : forall b s1 s2 s t,
-    (<{ if b {s1}{s2} ; s}>, t) ->s (<{ s2 ; s }>, t :: cond  (BNot (Bapply_t t b)))
+    (<{ if b {s1}{s2} ; s}>, t) ->s (<{ s2 ; s }>, t :: cond (BNot b))
 | SWhileTrue_step : forall b s s' t,
-    (<{ while b {s} ; s' }>, t) ->s (<{ s ; while b {s} ; s' }>, t :: cond  (Bapply_t t b))
+    (<{ while b {s} ; s' }>, t) ->s (<{ s ; while b {s} ; s' }>, t :: cond b)
 | SWhileFalse_step : forall b s s' t,
-    (<{ while b {s} ; s' }>, t) ->s (s', t :: cond  (BNot (Bapply_t t b)))
-  where " c '->s' c' " := (Sstep c c').
+    (<{ while b {s} ; s' }>, t) ->s (s', t :: cond (BNot b))
+where " c '->s' c' " := (Sstep c c').
 
 Definition multi_Sstep := clos_refl_trans_n1 _ Sstep.
 Notation " c '->*' c' " := (multi_Sstep c c') (at level 40).
@@ -104,15 +127,15 @@ Fixpoint acc_GVal (G0:GVal) (L0:LVal) (t:CTrace) : GVal :=
   match t with
   | Tnil => G0
   | Tcons t' (inr _) => acc_GVal G0 L0 t'
-  | Tcons t' (inl (x, e)) => let G' := acc_GVal G0 L0 t' in
-                            let L' := acc_LVal G0 L0 t' in update G' x (Aeval G' L' e)
+  | Tcons t' (inl (x, v)) => let G' := acc_GVal G0 L0 t' in
+                            (x !-> v ; G')
   end
 with acc_LVal (G0:GVal) (L0:LVal) (t:CTrace) : LVal :=
   match t with
   | Tnil => L0
   | Tcons t' (inl _) => acc_LVal G0 L0 t'
-  | Tcons t' (inr (x, e)) => let G' := acc_GVal G0 L0 t' in
-                            let L' := acc_LVal G0 L0 t' in update L' x (Aeval G' L' e)
+  | Tcons t' (inr (x, v)) => let L' := acc_LVal G0 L0 t' in
+                            (x !-> v ; L')
   end.
 
 Definition Aeval_t (G0:GVal) (L0:LVal) (t:CTrace) (e:Aexpr) : nat :=
@@ -120,177 +143,6 @@ Definition Aeval_t (G0:GVal) (L0:LVal) (t:CTrace) (e:Aexpr) : nat :=
 
 Definition Beval_t (G0:GVal) (L0:LVal) (t:CTrace) (b:Bexpr) : bool :=
   Beval (acc_GVal G0 L0 t) (acc_LVal G0 L0 t) b.
-
-Definition CConfig : Type := Stmt * CTrace.
-
-Reserved Notation " c '=>c' c' " (at level 40).
-
-Inductive Cstep : relation CConfig :=
-| CGAsgn_step : forall x e s t G0 L0 v,
-    Aeval_t G0 L0 t e = v ->
-    (<{ x :=G e ; s }>, t) =>c (s, t :: inl (x, v))
-| CLAsgn_step : forall x e s t G0 L0 v,
-    Aeval_t G0 L0 t e = v ->
-    (<{ x :=L e ; s }>, t) =>c (s, t :: inr (x, v))
-| CProc_step : forall u body e s s' t y G0 L0 v,
-    (* y fresh *)
-    Aeval_t G0 L0 t e = v ->
-    Stmt_sub body u y = s ->
-    (<{ proc(u){body}(e) ; s' }>, t) =>c (<{s ; s'}>, t :: inr (y, v))
-| CReturn_step : forall s t,
-    (<{ return ; s }>, t) =>c (s, t)
-| CIfTrue_step : forall b s1 s2 s t G0 L0,
-    Beval_t G0 L0 t b = true ->
-    (<{ if b {s1}{s2} ; s }>, t) =>c (<{s1 ; s}>, t)
-| CIfFalse_step : forall b s1 s2 s t G0 L0,
-    Beval_t G0 L0 t b = false ->
-    (<{ if b {s1}{s2} ; s }>, t) =>c (<{s2 ; s}>, t)
-| CWhileTrue_step : forall b s s' t G0 L0,
-    Beval_t G0 L0 t b = true ->
-    (<{ while b {s} ; s' }>, t) =>c (<{s ; while b {s} ; s'}>, t)
-| CWhileFalse_step : forall b s s' t G0 L0,
-    Beval_t G0 L0 t b = false ->
-    (<{ while b {s} ; s' }>, t) =>c (s', t)
-  where " c '=>c' c' " := (Cstep c c').
-
-Definition multi_Cstep := clos_refl_trans_n1 _ Cstep.
-Notation " c '=>*' c' " := (multi_Cstep c c') (at level 40).
-
-(** an aside with examples to verify semantics *)
-
-Definition X : GVar := "X".
-Definition Y : LVar := "Y".
-Definition U : LVar := "U".
-
-(* not sure how to elegantly incorporate this assumption without semantics *)
-Axiom Seq_Assoc : forall s1 s2 s3,
-    <{ (s1 ; s2) ; s3 }> = <{ s1 ; s2 ; s3 }>.
-
-Example test_program : Stmt :=
-  <{proc(U){ U :=L U + 1;
-              X :=G U + 2;
-              return}
-       (X + 1);
-     X :=G 0}>.
-
-Lemma test_body_subst :
-    <{ Y :=L Y + 1;
-       X :=G Y + 2;
-       return}>
-    = Stmt_sub <{ U :=L U + 1;
-                  X :=G U + 2;
-                  return}>
-        U Y.
-Proof. simpl. rewrite L_single_update. reflexivity. Qed.
-
-
-Example Stest_trace : (test_program, [])
-                        ->* (<{X :=G 0}>,
-                                [inr (Y, <{X + 1}>);
-                                  inr (Y, <{(X + 1) + 1}>);
-                                  inl (inr (X, <{(X + 1) + 1 + 2}>))]).
-Proof.
-  assert (step1 : (test_program, [])
-                  ->s (<{ (Y :=L Y + 1; X :=G Y + 2; return); X :=G 0 }>, [inr (Y, <{ X + 1 }>)])).
-  { rewrite test_body_subst. apply SProc_step. exact []. }
-  assert (step2 : (<{ Y :=L Y + 1; X :=G Y + 2; return; X :=G 0 }>, [inr (Y, <{ X + 1 }>)])
-                  ->s (<{ X :=G Y + 2; return; X :=G 0 }>, [inr (Y, <{ X + 1 }>)] :: inr (Y, <{ (X + 1) + 1 }>))).
-   { apply SLAsgn_step. }
-   assert (step3 : (<{ X :=G Y + 2; return; X :=G 0 }>, [inr (Y, <{ X + 1 }>) ; inr (Y, <{ (X + 1) + 1 }>)])
-          ->s (<{ return; X :=G 0 }>, [inr (Y, <{ X + 1 }>) ; inr (Y, <{ (X + 1) + 1 }>)] :: inl (inr (X, <{ ((X + 1) + 1) + 2 }>)))).
-   { apply SGAsgn_step. }
-   eapply Relation_Operators.rtn1_trans. apply SReturn_step.
-   eapply Relation_Operators.rtn1_trans. apply step3.
-   eapply Relation_Operators.rtn1_trans. apply step2.
-   assert (assoc : <{ (Y :=L Y + 1; X :=G Y + 2; return); X :=G 0 }> = <{ Y :=L Y + 1; X :=G Y + 2; return; X :=G 0 }>).
-   { repeat (rewrite Seq_Assoc). reflexivity. }
-   eapply Relation_Operators.rtn1_trans. rewrite <- assoc. apply step1.
-   apply rtn1_refl.
-Qed.
-
-Example Ctest_trace : (test_program, [])
-                        =>*  (<{X :=G 0}>,
-                                 [inr (Y, 1) ;
-                                   inr (Y, 2);
-                                   inl (X, 4)]).
-Proof.
-  assert (step1 : (test_program, [])
-                  =>c (<{ (Y :=L Y + 1; X :=G Y + 2; return); X :=G 0 }>, [inr (Y, 1)])).
-  { rewrite test_body_subst. apply CProc_step with (G0 := (_ !-> 0)) (L0 := (_ !-> 0)); reflexivity. }
-  assert (step2 : (<{ Y :=L Y + 1; X :=G Y + 2; return; X :=G 0 }>, [inr (Y, 1)])
-                  =>c (<{ X :=G Y + 2; return; X :=G 0 }>, [inr (Y, 1)] :: inr (Y, 2))).
-   { apply CLAsgn_step with (G0 := (_ !-> 0)) (L0 := (_ !-> 0)); reflexivity. }
-   assert (step3 : (<{ X :=G Y + 2; return; X :=G 0 }>, [inr (Y, 1) ; inr (Y, 2)])
-          =>c (<{ return; X :=G 0 }>, [inr (Y, 1) ; inr (Y, 2)] :: inl (X, 4))).
-   { apply CGAsgn_step with (G0 := (_ !-> 0)) (L0 := (_ !-> 0)); reflexivity. }
-   eapply Relation_Operators.rtn1_trans. apply CReturn_step.
-   eapply Relation_Operators.rtn1_trans. apply step3.
-   eapply Relation_Operators.rtn1_trans. apply step2.
-   assert (assoc : <{ (Y :=L Y + 1; X :=G Y + 2; return); X :=G 0 }> = <{ Y :=L Y + 1; X :=G Y + 2; return; X :=G 0 }>).
-   { repeat (rewrite Seq_Assoc). reflexivity. }
-   eapply Relation_Operators.rtn1_trans. rewrite <- assoc. apply step1.
-   apply rtn1_refl.
-Qed.
-
-(** Correctness *)
-
-Fixpoint pc (t:STrace) : Bexpr :=
-  match t with
-  | [] => BTrue
-  | t' :: inr _ => pc t'
-  | t' :: inl (inr _) => pc t'
-  | t' :: inl (inl p) => BAnd p (pc t')
-  end.
-
-Ltac splits := repeat (try split).
-
-Theorem correctness : forall s s' t G0 L0,
-    (s, []) ->* (s', t) ->
-    Beval G0 L0 (pc t) = true ->
-    exists t', (s, []) =>* (s', t')
-              /\ acc_GVal G0 L0 t' = GComp G0 L0 (acc_GSubst Gid_sub Lid_sub t)
-              /\ acc_LVal G0 L0 t' = LComp G0 L0 (acc_LSubst Gid_sub Lid_sub t).
-Proof.
-  intros. dependent induction H.
-  - exists []. splits. apply rtn1_refl.
-  - dependent destruction H.
-    + (* global assignment *)
-      destruct (IHclos_refl_trans_n1 s <{ x :=G e ; s'}> t0) as [t' [comp [IHG IHL]]];
-        try reflexivity;
-        try assumption.
-      exists (t' :: inl (x, Aeval_t (acc_GVal G0 L0 t') (acc_LVal G0 L0 t') t' e)). splits.
-      * eapply Relation_Operators.rtn1_trans. apply CGAsgn_step with (e := e) (G0 := acc_GVal G0 L0 t') (L0 := acc_LVal G0 L0 t').
-        reflexivity. assumption.
-      * simpl. unfold Aeval_t. rewrite Gasgn_sound. rewrite eval_comp. rewrite <- IHG. rewrite <- IHL.
-      * simpl. rewrite IHL. reflexivity.
-
-
-Theorem correctness : forall t G0 L0,
-    Beval G0 L0 (pc t) = true ->
-    exists t',
-      acc_GVal t' = GComp G0 L0 (acc_GSubst t)
-      /\ acc_LVal t' = LComp G0 L0 (acc_LSubst t).
-Proof.
-  intros. induction t.
-  - exists []. split; reflexivity.
-  - dependent destruction a; try (dependent destruction s); try (dependent destruction p).
-    (* branching *)
-    + inversion H; subst. apply andb_true_iff in H1. destruct H1.
-      destruct (IHt H1) as [t' IH]. exists t'. simpl. assumption.
-    (* global assignment *)
-    + inversion H; subst. destruct (IHt H1) as [t' [IHG IHL]].
-      exists (t' :: inl (g, Aeval_t t' a)). split.
-      * simpl. rewrite Gasgn_sound. rewrite eval_comp.
-        rewrite <- IHG. rewrite <- IHL. unfold Aeval_t. reflexivity.
-      * simpl. assumption.
-    (* local assignment *)
-    + inversion H; subst. destruct (IHt H1) as [t' [IHG IHL]].
-      exists (t' :: inr (l, Aeval_t t' a)). split.
-      * simpl. assumption.
-      * simpl. rewrite Lasgn_sound. rewrite eval_comp.
-        rewrite <- IHG. rewrite <- IHL. unfold Aeval_t. reflexivity.
-Qed.
-
 
 Lemma Gcomp_update_comm : forall G L x (v:Val) s,
     GComp G L (update s x (AConst v)) = update (GComp G L s) x v.
@@ -306,22 +158,264 @@ Proof.
   unfold LComp. unfold update. destruct (x =? y); simpl; reflexivity.
 Qed.
 
-Theorem completeness : forall (t:CTrace) G0 L0,
-  exists (t':STrace), Beval G0 L0 (pc t') = true
-                 /\ GComp G0 L0 (acc_GSubst t') = acc_GVal t
-                 /\ LComp G0 L0 (acc_LSubst t') = acc_LVal t.
+Definition CConfig : Type := Stmt * CTrace.
+
+Reserved Notation " c '=>c' c' " (at level 40).
+
+Inductive Cstep : relation CConfig :=
+| CGAsgn_step : forall x e s t G0 L0,
+    (<{ x :=G e ; s }>, t) =>c (s, t :: inl (x, Aeval_t G0 L0 t e))
+| CLAsgn_step : forall x e s t G0 L0,
+    (<{ x :=L e ; s }>, t) =>c (s, t :: inr (x, Aeval_t G0 L0 t e))
+| CProc_step : forall u body e s' t y G0 L0,
+    (* y fresh *)
+    (<{ proc(u){body}(e) ; s' }>, t) =>c (SSeq (Stmt_sub body u y) s', t :: inr (y, Aeval_t G0 L0 t e))
+| CReturn_step : forall s t,
+    (<{ return ; s }>, t) =>c (s, t)
+| CIfTrue_step : forall b s1 s2 s t G0 L0,
+    Beval_t G0 L0 t b = true ->
+    (<{ if b {s1}{s2} ; s }>, t) =>c (<{s1 ; s}>, t)
+| CIfFalse_step : forall b s1 s2 s t G0 L0,
+    Beval_t G0 L0 t b = false ->
+    (<{ if b {s1}{s2} ; s }>, t) =>c (<{s2 ; s}>, t)
+| CWhileTrue_step : forall b s s' t G0 L0,
+    Beval_t G0 L0 t b = true ->
+    (<{ while b {s} ; s' }>, t) =>c (<{s ; while b {s} ; s'}>, t)
+| CWhileFalse_step : forall b s s' t G0 L0,
+    Beval_t G0 L0 t b = false ->
+    (<{ while b {s} ; s' }>, t) =>c (s', t)
+where " c '=>c' c' " := (Cstep c c').
+
+Definition multi_Cstep := clos_refl_trans_n1 _ Cstep.
+Notation " c '=>*' c' " := (multi_Cstep c c') (at level 40).
+
+(** an aside with examples to verify semantics *)
+
+(* not sure how to elegantly incorporate this assumption without semantics *)
+Axiom Seq_Assoc : forall s1 s2 s3,
+    <{ (s1 ; s2) ; s3 }> = <{ s1 ; s2 ; s3 }>.
+
+Definition foo_body : Stmt := <{
+      B :=L A ;
+      Y :=G B + 1;
+      return }>.
+
+Example test_program : Stmt :=
+  <{ if X <= 1
+              {proc(A){ foo_body }(Y + 1)}
+              {proc(A){ foo_body }(2)} ;
+       Y :=G 0
+    }>.
+
+Definition test_Strace :=
+  [ cond <{ X <= 1 }>;
+    asgnL C <{Y + 1}>;
+    asgnL B C;
+    asgnG Y <{ B + 1 }>].
+
+Definition test_Ctrace :=
+  [ inr (C, 1);
+     inr (B, 1);
+     inl (Y, 2)].
+
+Example test_Scomp : (test_program, [])
+                        ->* (<{Y :=G 0}>,
+                                test_Strace).
 Proof.
-  intros. induction t.
-  - exists []. splits.
-  - dependent destruction a; destruct p.
-    + destruct IHt as [t' [IHpc [IHG IHL]]].
-      exists (t' :: asgnG g (AConst v)). splits; simpl.
-      * assumption.
-      * simpl. rewrite <- IHG. rewrite Gcomp_update_comm. reflexivity.
-      * assumption.
-    + destruct IHt as [t' [IHpc [IHG IHL]]].
-      exists (t' :: asgnL l (AConst v)). splits; simpl.
-      * assumption.
-      * assumption.
-      * simpl. rewrite Lcomp_update_comm. rewrite <- IHL. reflexivity.
+  eapply Relation_Operators.rtn1_trans. apply SReturn_step.
+  eapply Relation_Operators.rtn1_trans. apply SGAsgn_step.
+  eapply Relation_Operators.rtn1_trans. apply SLAsgn_step.
+  assert (proc_subst : <{ B :=L C; Y :=G B + 1; return; Y :=G 0 }>
+                       = SSeq (Stmt_sub foo_body A C) <{ Y :=G 0 }>).
+  {simpl. rewrite update_eq. repeat (rewrite Seq_Assoc). reflexivity. }
+  eapply Relation_Operators.rtn1_trans. rewrite proc_subst. eapply SProc_step.
+  exact [].
+  eapply Relation_Operators.rtn1_trans. apply SIfTrue_step.
+  apply rtn1_refl.
 Qed.
+
+
+Example test_Ccomp : (test_program, [])
+                        =>*  (<{Y :=G 0}>,
+                                 test_Ctrace).
+Proof.
+  unfold test_Ctrace.
+  eapply Relation_Operators.rtn1_trans. apply CReturn_step.
+  eapply Relation_Operators.rtn1_trans.
+    assert (ev1 : Aeval_t (_ !-> 0) (_ !-> 0) [inr (C, 1);inr (B, 1)] <{B + 1}> = 2).
+    { unfold Aeval_t. simpl. reflexivity. }
+    assert (step1 : (<{ Y :=G B + 1; return; Y :=G 0 }>, [inr (C, 1);inr (B, 1)])
+            =>c (<{ return; Y :=G 0 }>, [inr (C, 1);inr (B, 1);inl (Y, Aeval_t (_ !-> 0) (_ !-> 0) [inr (C, 1);inr (B, 1)] <{B + 1}> )])).
+    { apply CGAsgn_step. }
+  rewrite <- ev1. apply step1.
+  eapply Relation_Operators.rtn1_trans.
+    assert (ev2: Aeval_t (_ !-> 0) (_ !-> 0) [inr (C, 1)] C = 1).
+    { unfold Aeval_t. simpl. rewrite update_eq. reflexivity. }
+    assert (step2 : (<{ B :=L C; Y :=G B + 1; return; Y :=G 0 }>, [inr (C, 1)])
+            =>c (<{ Y :=G B + 1; return; Y :=G 0 }>, [inr (C, 1);inr (B, Aeval_t (_ !-> 0) (_ !-> 0) [inr (C, 1)] C)])).
+    { apply CLAsgn_step. }
+  rewrite <- ev2. apply step2.
+  eapply Relation_Operators.rtn1_trans.
+    assert (ev3 : Aeval_t (_ !-> 0) (_ !-> 0) [] <{Y + 1}> = 1). {
+      unfold Aeval_t. reflexivity. }
+    assert (step3: (<{proc(A){foo_body}(Y + 1) ; Y :=G 0}>, []) =>c (SSeq (Stmt_sub foo_body A C) <{Y :=G 0}>, [inr (C, 1)])).
+    { rewrite <- ev3. eapply CProc_step. }
+  simpl in step3. repeat (rewrite Seq_Assoc in step3). apply step3.
+    eapply Relation_Operators.rtn1_trans.
+    assert (Beval_t (_ !-> 0) (_ !-> 0) [] <{ X <= 1 }> = true). { unfold Beval_t. reflexivity. }
+    eapply CIfTrue_step. apply H.
+  apply rtn1_refl.
+Qed.
+
+(** Correctness *)
+Ltac splits := repeat (try split).
+
+Example test_correct_GVal : acc_GVal (_ !-> 0) (_ !-> 0) test_Ctrace = GComp (_ !-> 0) (_ !-> 0) (acc_GSubst_id test_Strace).
+Proof.
+  extensionality x.
+  unfold acc_GSubst_id. unfold GComp. simpl. unfold update.
+  repeat (rewrite String.eqb_refl). destruct (Y =? x).
+  - reflexivity.
+  - apply apply_empty.
+Qed.
+
+Example test_correct_LVal : acc_LVal (_ !-> 0) (_ !-> 0) test_Ctrace = LComp (_ !-> 0) (_ !-> 0) (acc_LSubst_id test_Strace).
+Proof.
+  extensionality x.
+  unfold acc_LSubst_id. unfold LComp. simpl. unfold update.
+  repeat (rewrite String.eqb_refl). destruct (B =? x).
+  - reflexivity.
+  - destruct (C =? x).
+    + reflexivity.
+    + apply apply_empty.
+Qed.
+
+(* May be possible to extend to any initial trace *)
+Theorem correctness : forall s s' t G0 L0,
+    (s, []) ->* (s', t) ->
+    Beval G0 L0 (pc t) = true ->
+    exists t', (s, []) =>* (s', t')
+          /\ acc_GVal G0 L0 t' = GComp G0 L0 (acc_GSubst_id t)
+          /\ acc_LVal G0 L0 t' = LComp G0 L0 (acc_LSubst_id t).
+Proof.
+  intros. dependent induction H.
+  - exists []. splits. apply rtn1_refl.
+  - dependent destruction H.
+    + (* global assignment *)
+      destruct (IHclos_refl_trans_n1 s <{ x :=G e ; s'}> t0) as [t' [comp [IHG IHL]]];
+        try reflexivity;
+        try assumption.
+      exists (t' :: inl (x, Aeval_t G0 L0 t' e)). splits.
+      * eapply Relation_Operators.rtn1_trans. apply CGAsgn_step.
+        assumption.
+      * unfold acc_GSubst_id in *. unfold acc_LSubst_id in *. unfold Aeval_t.
+        simpl. rewrite Gasgn_sound. rewrite eval_comp.
+        rewrite <- IHG. rewrite <- IHL. reflexivity.
+      * simpl. assumption.
+    + (* local assignment *)
+      destruct (IHclos_refl_trans_n1 s <{ x :=L e ; s'}> t0) as [t' [comp [IHG IHL]]];
+        try reflexivity;
+        try assumption.
+      exists (t' :: inr (x, Aeval (acc_GVal G0 L0 t') (acc_LVal G0 L0 t') e)). splits.
+      * eapply Relation_Operators.rtn1_trans. apply CLAsgn_step.
+        assumption.
+      * simpl. assumption.
+      * unfold acc_GSubst_id in *. unfold acc_LSubst_id in *. unfold Aeval_t.
+        simpl. rewrite Lasgn_sound. rewrite eval_comp.
+        rewrite <- IHG. rewrite <- IHL. reflexivity.
+    + (* proc *)
+      destruct (IHclos_refl_trans_n1 s <{ proc(u){body}(e) ; s0}> t1) as [t' [comp [IHG IHL]]];
+        try reflexivity;
+        try assumption.
+      exists (t' :: inr (y, Aeval_t G0 L0 t' e)). splits.
+      * eapply Relation_Operators.rtn1_trans;
+          [apply CProc_step | assumption].
+      * simpl. assumption.
+      * unfold acc_GSubst_id in *. unfold acc_LSubst_id in *. unfold Aeval_t.
+        simpl. rewrite Lasgn_sound. rewrite eval_comp.
+        rewrite <- IHG. rewrite <- IHL. reflexivity.
+    + (* return *)
+      destruct (IHclos_refl_trans_n1 s <{ return ; s'}> t) as [t' [comp [IHG IHL]]];
+        try reflexivity;
+        try assumption.
+      exists t'. splits.
+      * eapply Relation_Operators.rtn1_trans;
+          [apply CReturn_step | assumption].
+      * assumption.
+      * assumption.
+    + (* if true *)
+      simpl in H1. apply andb_true_iff in H1. destruct H1.
+      destruct (IHclos_refl_trans_n1 s <{ if b {s1}{s2} ; s0}> t0) as [t' [comp [IHG IHL]]];
+        try reflexivity;
+        try assumption.
+      exists t'. splits.
+      * eapply Relation_Operators.rtn1_trans.
+        ** eapply CIfTrue_step. unfold Beval_t.
+           unfold Bapply_t in H. rewrite IHG. rewrite IHL.
+           rewrite <- eval_compB. rewrite Comp_subB. apply H.
+        ** apply comp.
+      * assumption.
+      * assumption.
+    + (* if false *)
+      simpl in H1. apply andb_true_iff in H1. destruct H1. apply negb_true_iff in H.
+      destruct (IHclos_refl_trans_n1 s <{ if b {s1}{s2} ; s0}> t0) as [t' [comp [IHG IHL]]];
+        try reflexivity;
+        try assumption.
+      exists t'. splits.
+      * eapply Relation_Operators.rtn1_trans.
+        ** eapply CIfFalse_step. unfold Beval_t.
+           unfold Bapply_t in H. rewrite IHG. rewrite IHL.
+           rewrite <- eval_compB. rewrite Comp_subB. apply H.
+        ** apply comp.
+      * simpl. assumption.
+      * simpl. assumption.
+    + (* while true *)
+      simpl in H1. apply andb_true_iff in H1. destruct H1.
+      destruct (IHclos_refl_trans_n1 s <{ while b {s0} ; s'0}> t0) as [t' [comp [IHG IHL]]];
+        try reflexivity;
+        try assumption.
+      exists t'. splits.
+      * eapply Relation_Operators.rtn1_trans.
+        ** eapply CWhileTrue_step. unfold Beval_t.
+           unfold Bapply_t in H. rewrite IHG. rewrite IHL.
+           rewrite <- eval_compB. rewrite Comp_subB. apply H.
+        ** assumption.
+      * simpl. assumption.
+      * simpl. assumption.
+    + (* while false *)
+      simpl in H1. apply andb_true_iff in H1. destruct H1. apply negb_true_iff in H.
+      destruct (IHclos_refl_trans_n1 s <{ while b {s0} ; s'}> t0) as [t' [comp [IHG IHL]]];
+        try reflexivity;
+        try assumption.
+      exists t'. splits.
+      * eapply Relation_Operators.rtn1_trans.
+        ** eapply CWhileFalse_step. unfold Beval_t.
+           unfold Bapply_t in H. rewrite IHG. rewrite IHL.
+           rewrite <- eval_compB. rewrite Comp_subB. apply H.
+        ** apply comp.
+      * simpl. assumption.
+      * simpl. assumption.
+Qed.
+
+Example test_complete_B : Beval (_ !-> 0) (_ !-> 0) (pc test_Strace) = true.
+Proof. reflexivity. Qed.
+
+(* Theorem completeness : forall (t:CTrace) G0 L0, *)
+(*   exists (t':STrace), Beval G0 L0 (pc t') = true *)
+(*                  /\ GComp G0 L0 (acc_GSubst t') = acc_GVal t *)
+(*                  /\ LComp G0 L0 (acc_LSubst t') = acc_LVal t. *)
+(* Proof. *)
+(*   intros. induction t. *)
+(*   - exists []. splits. *)
+(*   - dependent destruction a; destruct p. *)
+(*     + destruct IHt as [t' [IHpc [IHG IHL]]]. *)
+(*       exists (t' :: asgnG g (AConst v)). splits; simpl. *)
+(*       * assumption. *)
+(*       * simpl. rewrite <- IHG. rewrite Gcomp_update_comm. reflexivity. *)
+(*       * assumption. *)
+(*     + destruct IHt as [t' [IHpc [IHG IHL]]]. *)
+(*       exists (t' :: asgnL l (AConst v)). splits; simpl. *)
+(*       * assumption. *)
+(*       * assumption. *)
+(*       * simpl. rewrite Lcomp_update_comm. rewrite <- IHL. reflexivity. *)
+(* Qed. *)
