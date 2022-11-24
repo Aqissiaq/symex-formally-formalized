@@ -41,6 +41,13 @@ Proof.
   - reflexivity.
 Qed.
 
+Lemma update_shadow : forall (A : Type) (m : total_map A) x v1 v2,
+  (x !-> v2 ; x !-> v1 ; m) = (x !-> v2 ; m).
+Proof.
+  intros. extensionality y. unfold update.
+  destruct (x =? y)%string; reflexivity.
+Qed.
+
 Module BasicMaps.
   Import BasicExpr.
 
