@@ -368,98 +368,99 @@ Proof.
       exists x. rewrite H1. reflexivity.
 Qed.
 
-Theorem completeness : forall s s' t G0 L0,
-    @multi_Cstep G0 L0 (s, []) (s', t) ->
-    exists (t':STrace),
-      (s, []) ->* (s', t')
+Theorem completeness : forall s s' t0 t G0 L0,
+    @multi_Cstep G0 L0 (s, t0) (s', t) ->
+    (exists t', Beval G0 L0 (pc t') = true
+           /\ GComp G0 L0 (acc_GSubst_id t') = acc_GVal G0 L0 t0
+           /\ LComp G0 L0 (acc_LSubst_id t') = acc_LVal G0 L0 t0) ->
+    exists (t'0 t':STrace),
+      (s, t'0) ->* (s', t')
       /\ Beval G0 L0 (pc t') = true
       /\ GComp G0 L0 (acc_GSubst_id t') = acc_GVal G0 L0 t
       /\ LComp G0 L0 (acc_LSubst_id t') = acc_LVal G0 L0 t.
 Proof.
   intros. dependent induction H.
-  - exists []. splits.
-    apply rtn1_refl.
+  - destruct H0 as [t' [HPC [HG HL]]].
+    exists t'. exists t'. splits;
+      try assumption. apply rtn1_refl.
   - inversion H; subst.
     + (* global assignment *)
-      destruct (IHclos_refl_trans_n1 s <{ x :=G e ; s'}> t0) as [t' [comp [pc_true [IHG IHL]]]];
-        try reflexivity.
-      exists (t' :: asgnG x e). splits.
-      * eapply Relation_Operators.rtn1_trans. apply SGAsgn_step.
-        assumption.
+      destruct (IHclos_refl_trans_n1 s <{ x :=G e ; s'}> t0 t1) as [t0' [t' [comp [pc_true [IHG IHL]]]]];
+        try reflexivity; try assumption.
+      exists t0'. exists (t' :: asgnG x e). splits.
+      * eapply Relation_Operators.rtn1_trans. apply SGAsgn_step. apply comp.
       * simpl. assumption.
       * unfold acc_GSubst_id in *. unfold acc_LSubst_id in *. unfold Aeval_t.
         simpl. rewrite Gasgn_sound. rewrite eval_comp.
         rewrite IHG. rewrite IHL. reflexivity.
       * simpl. assumption.
       + (* local assignment *)
-      destruct (IHclos_refl_trans_n1 s <{ x :=L e ; s'}> t0) as [t' [comp [pc_true [IHG IHL]]]];
-        try reflexivity.
-      exists (t' :: asgnL x e). splits.
-      * eapply Relation_Operators.rtn1_trans. apply SLAsgn_step.
-        assumption.
+      destruct (IHclos_refl_trans_n1 s <{ x :=L e ; s'}> t0 t1) as [t0' [t' [comp [pc_true [IHG IHL]]]]];
+        try reflexivity; try assumption.
+      exists t0'. exists (t' :: asgnL x e). splits.
+      * eapply Relation_Operators.rtn1_trans. apply SLAsgn_step. apply comp.
       * simpl. assumption.
       * simpl. assumption.
       * unfold acc_GSubst_id in *. unfold acc_LSubst_id in *. unfold Aeval_t.
         simpl. rewrite Lasgn_sound. rewrite eval_comp.
         rewrite IHG. rewrite IHL. reflexivity.
       + (* procedure call *)
-      destruct (IHclos_refl_trans_n1 s <{ proc(u){body}(e) ; s'0}> t0) as [t' [comp [pc_true [IHG IHL]]]];
-        try reflexivity.
-      exists (t' :: asgnL y0 e). splits.
-      * eapply Relation_Operators.rtn1_trans. apply SProc_step. exact [].
-        assumption.
+      destruct (IHclos_refl_trans_n1 s <{ proc(u){body}(e) ; s'0}> t0 t1) as [t0' [t' [comp [pc_true [IHG IHL]]]]];
+        try reflexivity; try assumption.
+      exists t0'. exists (t' :: asgnL y0 e). splits.
+      * eapply Relation_Operators.rtn1_trans. apply SProc_step. exact []. apply comp.
       * simpl. assumption.
       * simpl. assumption.
       * unfold acc_LSubst_id in *. unfold acc_GSubst_id in *. unfold Aeval_t.
         simpl. rewrite Lasgn_sound. rewrite eval_comp.
         rewrite IHG. rewrite IHL. reflexivity.
       + (* return *)
-      destruct (IHclos_refl_trans_n1 s <{ return ; s'}> t) as [t' [comp [pc_true [IHG IHL]]]];
-        try reflexivity.
-      exists t'. splits;
+      destruct (IHclos_refl_trans_n1 s <{ return ; s'}> t0 t) as [t0' [t' [comp [pc_true [IHG IHL]]]]];
+        try reflexivity; try assumption.
+      exists t0'. exists t'. splits;
         try assumption.
-      eapply Relation_Operators.rtn1_trans. apply SReturn_step. assumption.
+      eapply Relation_Operators.rtn1_trans. apply SReturn_step. apply comp.
       + (* if true *)
-      destruct (IHclos_refl_trans_n1 s <{ if b {s1}{s2} ; s0}> t) as [t' [comp [pc_true [IHG IHL]]]];
-        try reflexivity.
-      exists (t' :: cond b). splits.
+      destruct (IHclos_refl_trans_n1 s <{ if b {s1}{s2} ; s0}> t0 t) as [t0' [t' [comp [pc_true [IHG IHL]]]]];
+        try reflexivity; try assumption.
+      exists t0'. exists (t' :: cond b). splits.
       * eapply Relation_Operators.rtn1_trans. apply SIfTrue_step. apply comp.
       * simpl. apply andb_true_iff. split.
-        ** unfold Beval_t in H3. rewrite <- IHG in H3. rewrite <- IHL in H3. rewrite <- eval_compB in H3.
-           rewrite Comp_subB in H3. unfold Bapply_t. assumption.
+        ** unfold Beval_t in H4. rewrite <- IHG in H4. rewrite <- IHL in H4. rewrite <- eval_compB in H4.
+           rewrite Comp_subB in H4. unfold Bapply_t. assumption.
         ** assumption.
       * simpl. assumption.
       * simpl. assumption.
       + (* if false *)
-      destruct (IHclos_refl_trans_n1 s <{ if b {s1}{s2} ; s0}> t) as [t' [comp [pc_true [IHG IHL]]]];
-        try reflexivity.
-      exists (t' :: cond (BNot b)). splits.
+      destruct (IHclos_refl_trans_n1 s <{ if b {s1}{s2} ; s0}> t0 t) as [t0' [t' [comp [pc_true [IHG IHL]]]]];
+        try reflexivity; try assumption.
+      exists t0'. exists (t' :: cond (BNot b)). splits.
       * eapply Relation_Operators.rtn1_trans. apply SIfFalse_step. apply comp.
       * simpl. apply andb_true_iff. split.
-        ** unfold Beval_t in H3. rewrite <- IHG in H3. rewrite <- IHL in H3. rewrite <- eval_compB in H3.
-           rewrite Comp_subB in H3. unfold Bapply_t. apply negb_true_iff. assumption.
+        ** unfold Beval_t in H4. rewrite <- IHG in H4. rewrite <- IHL in H4. rewrite <- eval_compB in H4.
+           rewrite Comp_subB in H4. unfold Bapply_t. apply negb_true_iff. assumption.
         ** assumption.
       * simpl. assumption.
       * simpl. assumption.
       + (* while true *)
-      destruct (IHclos_refl_trans_n1 s <{ while b {s0} ; s'0}> t) as [t' [comp [pc_true [IHG IHL]]]];
-        try reflexivity.
-      exists (t' :: cond b). splits.
+      destruct (IHclos_refl_trans_n1 s <{ while b {s0} ; s'0}> t0 t) as [t0' [t' [comp [pc_true [IHG IHL]]]]];
+        try reflexivity; try assumption.
+      exists t0'. exists (t' :: cond b). splits.
       * eapply Relation_Operators.rtn1_trans. apply SWhileTrue_step. apply comp.
       * simpl. apply andb_true_iff. split.
-        ** unfold Beval_t in H3. rewrite <- IHG in H3. rewrite <- IHL in H3. rewrite <- eval_compB in H3.
-           rewrite Comp_subB in H3. unfold Bapply_t. assumption.
+        ** unfold Beval_t in H4. rewrite <- IHG in H4. rewrite <- IHL in H4. rewrite <- eval_compB in H4.
+           rewrite Comp_subB in H4. unfold Bapply_t. assumption.
         ** assumption.
       * simpl. assumption.
       * simpl. assumption.
       + (* while false *)
-      destruct (IHclos_refl_trans_n1 s <{ while b {s0} ; s'}> t) as [t' [comp [pc_true [IHG IHL]]]];
-        try reflexivity.
-      exists (t' :: cond (BNot b)). splits.
+      destruct (IHclos_refl_trans_n1 s <{ while b {s0} ; s'}> t0 t) as [t0' [t' [comp [pc_true [IHG IHL]]]]];
+        try reflexivity; try assumption.
+      exists t0'. exists (t' :: cond (BNot b)). splits.
       * eapply Relation_Operators.rtn1_trans. apply SWhileFalse_step. apply comp.
       * simpl. apply andb_true_iff. split.
-        ** unfold Beval_t in H3. rewrite <- IHG in H3. rewrite <- IHL in H3. rewrite <- eval_compB in H3.
-           rewrite Comp_subB in H3. unfold Bapply_t. apply negb_true_iff. assumption.
+        ** unfold Beval_t in H4. rewrite <- IHG in H4. rewrite <- IHL in H4. rewrite <- eval_compB in H4.
+           rewrite Comp_subB in H4. unfold Bapply_t. apply negb_true_iff. assumption.
         ** assumption.
       * simpl. assumption.
       * simpl. assumption.
