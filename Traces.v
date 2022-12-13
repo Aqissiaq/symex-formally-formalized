@@ -54,3 +54,12 @@ Proof.
     try assumption;
     discriminate.
 Qed.
+
+Theorem cons_neq {A:Type} (x:trace A) (y:A) : x::y <> x.
+Proof. induction x.
+       - apply cons_not_empty.
+       - intro. inversion H; subst. exact (IHx H1).
+Qed.
+
+Theorem cons_neq' {A:Type} (x:trace A) (y:A) : x <> x::y.
+Proof. intro. symmetry in H. exact (cons_neq _ _  H). Qed.

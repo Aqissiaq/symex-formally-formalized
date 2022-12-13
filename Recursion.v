@@ -66,6 +66,13 @@ Notation "'proc' '(' u ')' '{' b '}'"  :=
 Open Scope com_scope.
 Open Scope list_scope.
 
+(* useful lemma for progress in (trace) semantics *)
+Lemma SSeq_disjoint : forall s s', <{s ; s'}> <> s'.
+Proof. intros s s' contra. destruct s;
+         induction s'; try discriminate;
+         try (inversion contra; subst; exact (IHs'2 H1)).
+Qed.
+
 Definition Sstack := list (LSub * Stmt).
 
 Definition SConfig : Type := Sstack * GSub * Bexpr.
