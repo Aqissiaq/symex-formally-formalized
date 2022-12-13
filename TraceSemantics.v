@@ -587,7 +587,6 @@ Qed.
 (* use these lemmas for something like "for t ~ t', if a concretization of t exists then a concretization of t' does too"
  and then maybe "(s, t) -> (s, t') is a sound reduction if t ~ t'" and do some state merging?*)
 (* Note: still indexing on initial valuations, not sure what to do about that *)
-  (* (t1 :: asgnG x e) ~ (t' :: asgnG x e) *)
 
 Lemma G_cond_idempotent : forall t b,
     acc_GSubst_id t = acc_GSubst_id (t :: inl (inl b)).
@@ -746,27 +745,22 @@ Proof.
       ** eapply Relation_Operators.rtn1_trans. apply SWhileFalse_step. apply IHComp.
 Qed.
 
-Theorem correctness_reduced : forall s s' t0 t t0' G0 L0,
+(* In current formulation: does not actually use any of the above lemmas *)
+Theorem correctness_reduced : forall s s' t0 t0' t tc G0 L0,
     (s, t0) ->* (s', t) ->
     Beval G0 L0 (pc t) = true ->
-    correctness_prefix_condition t0 G0 L0 ->
+    (* equivalent start trace is concretely reachable *)
     t0 ~ t0' ->
-    exists tc0 tc, @multi_Cstep G0 L0 (s, tc0) (s', tc)
-              /\ acc_GVal G0 L0 tc = GComp G0 L0 (acc_GSubst_id t)
-              /\ acc_LVal G0 L0 tc = LComp G0 L0 (acc_LSubst_id t).
+    acc_GVal G0 L0 tc = GComp G0 L0 (acc_GSubst_id t0') ->
+    acc_LVal G0 L0 tc = LComp G0 L0 (acc_LSubst_id t0') ->
+    exists t', @multi_Cstep G0 L0 (s, tc) (s', t')
+              /\ acc_GVal G0 L0 t' = GComp G0 L0 (acc_GSubst_id t)
+              /\ acc_LVal G0 L0 t' = LComp G0 L0 (acc_LSubst_id t).
 Proof.
   intros.
-  destruct (STrace_equiv_continue s s' t0 t0' t G0 L0 H2 H H0)
-  as [t' [HEquiv [Hpc HComp]]].
-  apply STrace_correct_equiv_cong with (t' := t0') in H1;
+  destruct H1 as [HG [HL _]].
+  unfold GSub_equiv in HG. extensionality in HG. rewrite <- HG in H2.
+  unfold LSub_equiv in HL. extensionality in HL. rewrite <- HL in H3.
+  apply correctness with (t0 := t0);
     try assumption.
-  destruct H1 as [t__c [HG HL]].
-  destruct (correctness s s' t0' t' t__c G0 L0 HComp Hpc HG HL) as [ct [HCComp [HG' HL']]].
-  destruct HEquiv as [GEquiv [LEquiv _]].
-  unfold GSub_equiv in GEquiv. extensionality in GEquiv.
-  unfold LSub_equiv in LEquiv. extensionality in LEquiv.
-  exists t__c. exists ct. splits;
-    [ apply HCComp
-    | rewrite GEquiv; assumption
-    | rewrite LEquiv; assumption].
 Qed.
