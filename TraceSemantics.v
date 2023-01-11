@@ -110,7 +110,6 @@ Definition multi_Sstep := clos_refl_trans_n1 _ Sstep.
 Notation " c '->*' c' " := (multi_Sstep c c') (at level 40) : trace_scope.
 
 (** Properties *)
-
 Lemma Sstep_progress : forall s s' t t',
     (s, t) ->s (s', t') ->
     s <> s' \/ t <> t'.
@@ -745,6 +744,7 @@ Proof.
       ** eapply Relation_Operators.rtn1_trans. apply SWhileFalse_step. apply IHComp.
 Qed.
 
+(** Correctness modulo trace equivalance*)
 (* In current formulation: does not actually use any of the above lemmas *)
 Theorem correctness_reduced : forall s s' t0 t0' t tc G0 L0,
     (s, t0) ->* (s', t) ->
@@ -764,3 +764,82 @@ Proof.
   apply correctness with (t0 := t0);
     try assumption.
 Qed.
+
+(* Next steps:
+ - completeness modulo trace equivalence
+ - relation to Dominique's abstractions
+ - relation to Bubel & Hähnle's traces (backwards reasoning)
+ - different/sufficient notions of trace equivalence
+*)
+
+Lemma GComp_not_injective: ~(forall sig sig' G0 L0,
+  GComp G0 L0 sig = GComp G0 L0 sig' -> sig = sig').
+Proof.
+  remember ((_ !-> AGVar "x")) as sig.
+  remember (_ !-> AConst 0) as sig'.
+  remember (_ !-> 0) as G0.
+  remember (_ !-> 1) as L0.
+  intro. specialize (H sig sig' G0 L0).
+  assert (comp_equal: GComp G0 L0 sig = GComp G0 L0 sig'). {
+    extensionality x. unfold GComp, Aeval. subst. simpl.
+    apply apply_empty.
+  }
+  specialize (H comp_equal). subst.
+  eapply equal_f in H. rewrite 2 apply_empty in H. discriminate.
+  Unshelve. exact "x".
+Qed.
+
+(*... so that can't be used for completeness *)
+
+Lemma step_unique : forall G0 L0 s s' t0 t t',
+    (s, t0) ->s (s', t) ->
+    (s, t0) ->s (s', t') ->
+    Beval G0 L0 (pc t) = true ->
+    Beval G0 L0 (pc t') = true ->
+    t = t'.
+Proof.
+  intros. inversion H; inversion H0; subst;
+    inversion H8;
+    try reflexivity;
+    try assumption;
+    try (simpl in *; unfold Bapply_t in *;
+         apply andb_true_iff in H1; destruct H1;
+         apply andb_true_iff in H2; destruct H2;
+         try (apply negb_true_iff in H2);
+         try (apply negb_true_iff in H1);
+         rewrite H4 in H2; rewrite H1 in H2);
+    try discriminate.
+  admit. (* fresh variable again *)
+Admitted.
+
+(*... so maybe completeness isn't even interesting in this setting *)
+(*(and yet I can't prove it :/)*)
+
+(* more interesting: add some non-determinism *)
+
+(** Completeness modulo trace equivalence *)
+(* with empty starting trace while experimenting *)
+Theorem completeness_reduced : forall s s' tc t t' G0 L0,
+    (* there is a concrete computation *)
+    @multi_Cstep G0 L0 (s, []) (s', tc) ->
+    (* t is an abstraction in the sense of regular completeness *)
+      (s, []) ->* (s', t) ->
+      Beval G0 L0 (pc t) = true ->
+      GComp G0 L0 (acc_GSubst_id t) = acc_GVal G0 L0 tc ->
+      LComp G0 L0 (acc_LSubst_id t) = acc_LVal G0 L0 tc ->
+    (* and so is t' *)
+      (s, []) ->* (s', t') ->
+      Beval G0 L0 (pc t') = true ->
+      GComp G0 L0 (acc_GSubst_id t') = acc_GVal G0 L0 tc ->
+      LComp G0 L0 (acc_LSubst_id t') = acc_LVal G0 L0 tc ->
+    (* then t ~ t' *)
+      t ~ t'.
+Proof.
+  (* this appears not to be true in current formulation *)
+  unfold STrace_equiv. unfold GSub_equiv. unfold LSub_equiv. intros.
+  splits.
+  - rewrite <- H2 in H6.
+    admit. (* this is where injectivity would be useful, but it only holds up to Aeval *)
+  - rewrite <- H3 in H7.
+    admit. (* ditto *)
+  - intro.

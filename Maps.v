@@ -41,6 +41,10 @@ Proof.
   - reflexivity.
 Qed.
 
+Lemma equal_maps {A : Type} {m m' : total_map A} :
+  m = m' -> forall x, m x = m' x.
+Proof. intros. subst. reflexivity. Qed.
+
 Lemma update_shadow : forall (A : Type) (m : total_map A) x v1 v2,
   (x !-> v2 ; x !-> v1 ; m) = (x !-> v2 ; m).
 Proof.
