@@ -7,4 +7,6 @@ Traces.v
 BasicConcrete.v
 Recursion.v
 TraceSemantics.v
+Parallel.v
+ParallelTraces.v
 #Oop.v

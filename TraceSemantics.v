@@ -527,7 +527,7 @@ Qed.
  *)
 
 Definition GSub_equiv (G G':GSub) := forall x, G x = G' x.
-Definition LSub_equiv (G G':GSub) := forall x, G x = G' x.
+Definition LSub_equiv (L L':LSub) := forall x, L x = L' x.
 Definition PC_equiv (t t': STrace) := forall G0 L0, Beval G0 L0 (pc t) = true <-> Beval G0 L0 (pc t') = true.
 
 Definition STrace_equiv (t t':STrace) := GSub_equiv (acc_GSubst_id t) (acc_GSubst_id t')
@@ -819,27 +819,27 @@ Admitted.
 
 (** Completeness modulo trace equivalence *)
 (* with empty starting trace while experimenting *)
-Theorem completeness_reduced : forall s s' tc t t' G0 L0,
-    (* there is a concrete computation *)
-    @multi_Cstep G0 L0 (s, []) (s', tc) ->
-    (* t is an abstraction in the sense of regular completeness *)
-      (s, []) ->* (s', t) ->
-      Beval G0 L0 (pc t) = true ->
-      GComp G0 L0 (acc_GSubst_id t) = acc_GVal G0 L0 tc ->
-      LComp G0 L0 (acc_LSubst_id t) = acc_LVal G0 L0 tc ->
-    (* and so is t' *)
-      (s, []) ->* (s', t') ->
-      Beval G0 L0 (pc t') = true ->
-      GComp G0 L0 (acc_GSubst_id t') = acc_GVal G0 L0 tc ->
-      LComp G0 L0 (acc_LSubst_id t') = acc_LVal G0 L0 tc ->
-    (* then t ~ t' *)
-      t ~ t'.
-Proof.
-  (* this appears not to be true in current formulation *)
-  unfold STrace_equiv. unfold GSub_equiv. unfold LSub_equiv. intros.
-  splits.
-  - rewrite <- H2 in H6.
-    admit. (* this is where injectivity would be useful, but it only holds up to Aeval *)
-  - rewrite <- H3 in H7.
-    admit. (* ditto *)
-  - intro.
+(* Theorem completeness_reduced : forall s s' tc t t' G0 L0, *)
+(*     (* there is a concrete computation *) *)
+(*     @multi_Cstep G0 L0 (s, []) (s', tc) -> *)
+(*     (* t is an abstraction in the sense of regular completeness *) *)
+(*       (s, []) ->* (s', t) -> *)
+(*       Beval G0 L0 (pc t) = true -> *)
+(*       GComp G0 L0 (acc_GSubst_id t) = acc_GVal G0 L0 tc -> *)
+(*       LComp G0 L0 (acc_LSubst_id t) = acc_LVal G0 L0 tc -> *)
+(*     (* and so is t' *) *)
+(*       (s, []) ->* (s', t') -> *)
+(*       Beval G0 L0 (pc t') = true -> *)
+(*       GComp G0 L0 (acc_GSubst_id t') = acc_GVal G0 L0 tc -> *)
+(*       LComp G0 L0 (acc_LSubst_id t') = acc_LVal G0 L0 tc -> *)
+(*     (* then t ~ t' *) *)
+(*       t ~ t'. *)
+(* Proof. *)
+(*   (* this appears not to be true in current formulation *) *)
+(*   unfold STrace_equiv. unfold GSub_equiv. unfold LSub_equiv. intros. *)
+(*   splits. *)
+(*   - rewrite <- H2 in H6. *)
+(*     admit. (* this is where injectivity would be useful, but it only holds up to Aeval *) *)
+(*   - rewrite <- H3 in H7. *)
+(*     admit. (* ditto *) *)
+(*   - intro. *)
