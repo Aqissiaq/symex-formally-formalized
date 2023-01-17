@@ -283,7 +283,7 @@ Qed.
 (** skipping "simple" completeness for now
  to instead do trace equivalence *)
 
-Definition subst_equiv (s s': sub) := forall x, s x = s' x.
+Definition subst_equiv (s s': sub) := forall V0, Comp V0 s = Comp V0 s'.
 Definition pc_equiv (t t': STrace) := forall V0, Beval V0 (pc t) = true <-> Beval V0 (pc t') = true.
 
 Definition STrace_equiv : relation STrace :=
@@ -309,13 +309,19 @@ Theorem correctness_reduced : forall s s' t0 t0' t tc V0,
 Proof.
   intros.
   destruct H1 as [Hsubst _].
-  unfold subst_equiv in Hsubst. extensionality in Hsubst. rewrite <- Hsubst in H2.
+  unfold subst_equiv in Hsubst. rewrite <- Hsubst in H2.
   apply correctness with (t0 := t0);
     try assumption.
 Qed.
 
 Definition is_abstract_trace {V0:Valuation} {s s': Stmt} {t':CTrace} (c : multi_Cstep V0 (s, []) (s', t')) (t: STrace) :=
   (s, []) ->* (s', t) /\ Beval V0 (pc t) = true /\ Comp V0 (acc_subst_id t) = acc_val V0 t'.
+
+Lemma foo : forall V V' s s' x, Comp V s x = Comp V s' x -> Comp V' s x = Comp V' s' x.
+Proof. intros. unfold Comp in *.
+       destruct (s x); induction (s' x); simpl in *; try assumption.
+       - admit.
+         - inversion H; subst.
 
 (* empty starting trace for convenience *)
 Theorem completeness_reduced : forall s s' tc t t' V0
@@ -331,4 +337,4 @@ Proof.
   remember (s', tc) as p. destruct p. apply pair_equal_spec in Heqp. destruct Heqp.
   induction C; subst.
   - splits.
-    + intro.
+    intro.

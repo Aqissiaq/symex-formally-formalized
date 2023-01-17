@@ -45,6 +45,13 @@ Proof.
   - discriminate.
 Qed.
 
+Lemma not_empty_cons {A:Type} (t:trace A) : t <> [] -> exists a t', t = t'::a.
+Proof.
+  intros. destruct t.
+  - exfalso. apply H. reflexivity.
+  - exists a. exists t. reflexivity.
+Qed.
+
 Theorem app_eq_nil {A:Type} (x y:trace A) : x ++ y = [] -> x = [] /\ y = [].
 Proof.
   induction y; induction x; intro; split;
@@ -63,3 +70,18 @@ Qed.
 
 Theorem cons_neq' {A:Type} (x:trace A) (y:A) : x <> x::y.
 Proof. intro. symmetry in H. exact (cons_neq _ _  H). Qed.
+
+Lemma peel_off' {A:Type} (t:trace A) (a:A) : exists x t', t::a = [x] ++ t'.
+Proof.
+  intros. induction t.
+  - exists a. exists []. reflexivity.
+  - destruct IHt as [x [t' IH]]. destruct t'; inversion IH; subst.
+    + exists a0. exists [x]. reflexivity.
+    + exists x. exists ((t' :: a0 ):: a1). reflexivity.
+Qed.
+
+Theorem peel_off {A:Type} (t:trace A) : t <> [] -> exists x t', t = [x] ++ t'.
+Proof.
+  intros. destruct (not_empty_cons _ H) as [x [t' H']].
+  rewrite H'. apply peel_off'.
+Qed.
