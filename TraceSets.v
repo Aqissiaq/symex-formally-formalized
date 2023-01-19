@@ -20,7 +20,7 @@ From Coq Require Import Program.Equality.   (* for `dependent induction` *)
 (* which apparently (CTrees) smuggles in UIP(-equivalent) *)
 From Coq Require Import Logic.FunctionalExtensionality. (* for equality of substitutions *)
 From Coq Require Import Relations.
-From Coq Require Import Classes.RelationClasses.
+(* From Coq Require Import Classes.RelationClasses. *)
 
 From SymEx Require Import Expr.
 Import BasicExpr.
@@ -201,7 +201,7 @@ Lemma acc_subst_empty : forall s,
     acc_subst s [] = s.
 Proof. intros. reflexivity. Qed.
 
-Lemma acc_subst_append : forall s0 t1 t2,
+Lemma acc_subst_app : forall s0 t1 t2,
     acc_subst s0 (t1 ++ t2) = acc_subst (acc_subst s0 t1) t2.
 Proof.
   intros. induction t2.
@@ -217,25 +217,23 @@ Proof.
   - simpl. destruct (Beval V0 (pc_id t1)); reflexivity.
   - destruct a.
     + assumption.
-    + unfold pc_id in *. simpl. rewrite IHt2. simpl. unfold Bapply_t, acc_subst_id. rewrite acc_subst_append.
-      (* this is a mess*)
+    + unfold pc_id in *. simpl. rewrite IHt2. simpl. unfold Bapply_t, acc_subst_id. rewrite acc_subst_app.
+      (* this is a mess, but it's just rearranging some conjunctions *)
       rewrite 2 andb_assoc. rewrite andb_comm. rewrite andb_assoc. rewrite andb_comm.
       rewrite andb_comm with (b1 := Beval V0 (pc (acc_subst id_sub t1) t2)). rewrite andb_assoc. reflexivity.
 Qed.
 
 Lemma trace_seq_app : forall V s1 s2, trace_of V <{s1 ; s2}> = trace_of V s1 ++ trace_of' V (trace_of V s1) s2.
 Proof.
-  intros. dependent induction s1.
-  - assert (trace_of V <{ x := e }> = [CTAsgn x (Aeval V e)]). {
-      unfold trace_of, trace_of'. reflexivity. }
-Admitted.
+  intros. destruct(trace_of V s1) eqn:H;
+    unfold trace_of in *; simpl; rewrite H; reflexivity.
+Qed.
 
 Lemma acc_val_app : forall V0 t1 t2,
     acc_val V0 (t1 ++ t2) = acc_val (acc_val V0 t1) t2.
 Proof.
-  induction t2.
-  - reflexivity.
-  - destruct a. simpl. rewrite IHt2. reflexivity.
+  induction t2;
+    [|destruct a; simpl; rewrite IHt2]; reflexivity.
 Qed.
 
 Theorem soundness : forall s V0 , exists ts,
@@ -254,9 +252,12 @@ Proof.
     destruct (IHs2 (acc_val V0 (trace_of V0 s1))) as [ts2 [comp2 [IH2 IHpc2]]].
     exists (ts1 ++ ts2). splits.
     + apply htr_seq; assumption.
-    + unfold is_abstraction in *. rewrite trace_seq_app.
-      rewrite acc_val_app.
-      unfold acc_subst_id. rewrite acc_subst_append. rewrite IH2.
+    + unfold is_abstraction in *. rewrite trace_seq_app. rewrite acc_val_app.
+      unfold acc_subst_id. rewrite acc_subst_app.
+      rewrite IH1 in *. admit.
+    + rewrite pc_app. apply andb_true_iff. splits.
+      * assumption.
+      * unfold is_abstraction in *. rewrite IH1 in IHpc2. rewrite comp_subB in IHpc2.
 
       (* need some lemmas about multiple composition but I cannot formulate them separate from acc_*
        which is worrying *)
