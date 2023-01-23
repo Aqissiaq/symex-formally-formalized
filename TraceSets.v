@@ -29,22 +29,42 @@ Import BasicExpr.
 From SymEx Require Import Maps.
 Import BasicMaps.
 
-From SymEx Require Import Parallel.
-
 From SymEx Require Import Traces.
 
 Open Scope com_scope.
 Open Scope string_scope.
 Open Scope trace_scope.
 
+Definition Var : Type := string.
 Example X : Var := "x".
 Example Y : Var := "y".
 
 Ltac splits := repeat (try split).
 
-(** Symbolic semantics *)
-Definition Var : Type := string.
+Inductive Program : Type :=
+| PNil
+| PStep (p: Program) (s:Stmt)
+with Stmt : Type :=
+| SAsgn (x:Var) (e:Aexpr)
+| SIf (b:Bexpr) (s1 s2:Program)
+| SPar (s1 s2:Program).
 
+Notation "x := y"  :=
+         (SAsgn x y)
+            (in custom com at level 0, x constr at level 0,
+             y at level 85, no associativity) : com_scope.
+Notation "'{' x '}'" := (PStep PNil x) (in custom com at level 80) : com_scope.
+Notation "x ';' .. ';' y ';' z" := (PStep (PStep .. (PStep PNil x) .. y) z)
+    (in custom com at level 79) : com_scope.
+Notation "x || y" :=
+         (SPar x y)
+           (in custom com at level 90, right associativity) : com_scope.
+Notation "'if' x y z 'fi'" :=
+         (SIf x y z)
+           (in custom com at level 89, x at level 99,
+            y at level 99, z at level 99) : com_scope.
+
+(** Symbolic semantics *)
 Inductive STrace_step : Type :=
 | STAsgn (x:Var) (e:Aexpr)
 | STCond (b:Bexpr).
@@ -55,7 +75,9 @@ Definition Concatenate (A B: Ensemble STrace) : Ensemble STrace :=
   fun t => exists t1 t2, t = t1 ++ t2 /\ A t1 /\ B t2.
 
 Example concat_ex : In _  (Concatenate
-                                (Singleton _ [STAsgn X 0])
+                                (Union _
+                                      (Singleton _ [STAsgn X 0])
+                                      (Singleton _ [STAsgn Y 1]))
                                 (Union _
                                       (Singleton _ [STAsgn Y 0])
                                       (Singleton _ [STAsgn X 1])))
@@ -63,16 +85,20 @@ Example concat_ex : In _  (Concatenate
 Proof.
   exists [STAsgn X 0]. exists [STAsgn Y 0]. splits.
   apply Union_introl. apply In_singleton.
+  apply Union_introl. apply In_singleton.
 Qed.
 
 Example concat_ex' : In _  (Concatenate
-                                (Singleton _ [STAsgn X 0])
+                                (Union _
+                                      (Singleton _ [STAsgn X 0])
+                                      (Singleton _ [STAsgn Y 1]))
                                 (Union _
                                       (Singleton _ [STAsgn Y 0])
                                       (Singleton _ [STAsgn X 1])))
-                         [STAsgn X 0; STAsgn X 1].
+                         [STAsgn Y 1; STAsgn X 1].
 Proof.
-  exists [STAsgn X 0]. exists [STAsgn X 1]. splits.
+  exists [STAsgn Y 1]. exists [STAsgn X 1]. splits.
+  apply Union_intror. apply In_singleton.
   apply Union_intror. apply In_singleton.
 Qed.
 
@@ -91,26 +117,40 @@ Inductive is_interleaving : STrace -> STrace -> STrace -> Prop :=
 Definition Interleave (A B: Ensemble STrace) : Ensemble STrace :=
   fun t => exists t1 t2, is_interleaving t1 t2 t /\ A t1 /\ B t2.
 
-Fixpoint has_trace__S (s:Stmt) : Ensemble STrace :=
-  match s with
-  | <{ x := e }> => Singleton _ [STAsgn x e]
-  | <{ s1 ; s2 }> => Concatenate (has_trace__S s1) (has_trace__S s2)
-  | <{s1 || s2}> => Interleave (has_trace__S s1) (has_trace__S s2)
-  | <{if b {s1}{s2}}> => Union _
-                              (Concatenate (Singleton _ [STCond b]) (has_trace__S s1))
-                              (Concatenate (Singleton _ [STCond (BNot b)]) (has_trace__S s2))
-  | <{ skip }> => Empty_set STrace
-  end.
+Fixpoint prog_traces__S (p:Program) : Ensemble STrace :=
+  match p with
+  | PNil => Singleton _ []
+  | PStep p s => Concatenate (prog_traces__S p) (stmt_traces__S s)
+  end
+with stmt_traces__S (s:Stmt) : Ensemble STrace :=
+       match s with
+       | <{ x := e }> => Singleton _ [STAsgn x e]
+       | <{s1 || s2}> => Interleave (prog_traces__S s1) (prog_traces__S s2)
+       | <{if b s1 s2 fi}> => Union _
+                                  (Concatenate (Singleton _ [STCond b]) (prog_traces__S s1))
+                                  (Concatenate (Singleton _ [STCond (BNot b)]) (prog_traces__S s2))
+       end
+.
 
-Example branch_ex : In _ (has_trace__S <{if X <= 1 {Y := X} {Y := 1}}>) [STCond <{X <= 1}> ; STAsgn Y X].
-Proof. unfold has_trace__S, In. simpl. apply Union_introl. eexists. eexists. splits. reflexivity. Qed.
-
-Example par_x : has_trace__S <{(X := 1 ; Y := 2) || (X := Y ; Y := X)}> [STAsgn X 1 ; STAsgn X Y ; STAsgn Y X ; STAsgn Y 2].
-Proof. unfold has_trace__S, In. exists [STAsgn X 1; STAsgn Y 2]. exists [STAsgn X Y; STAsgn Y X]. splits.
-       - repeat constructor.
-       - eexists. eexists. splits. reflexivity.
-       - eexists. eexists. splits. reflexivity.
+Example branch_ex : In _ (stmt_traces__S <{if X <= 1 {X := Y} {Y := 1} fi}>) [STCond <{X <= 1}> ; STAsgn X Y].
+Proof. unfold stmt_traces__S, prog_traces__S. apply Union_introl. eexists. eexists [STAsgn X Y]. splits.
+       eexists. eexists. splits. reflexivity.
 Qed.
+
+Example left_ex : Program := PStep (PStep PNil <{X := 1}>) <{Y := 2}>.
+Example right_ex : Program := PStep (PStep PNil <{X := Y}>) <{Y := X}>.
+
+Example par_ex : stmt_traces__S <{left_ex || right_ex}> [STAsgn X 1 ; STAsgn X Y ; STAsgn Y X ; STAsgn Y 2].
+Proof.
+  unfold left_ex, right_ex. unfold stmt_traces__S, prog_traces__S.
+  exists [STAsgn X 1 ; STAsgn Y 2]. exists [STAsgn X Y ; STAsgn Y X]. splits.
+  - repeat (constructor).
+  - eexists. eexists. splits. reflexivity.
+    + eexists. eexists. splits. reflexivity.
+  - eexists. eexists. splits. reflexivity.
+    + eexists. eexists. splits. reflexivity.
+Qed.
+
 
 (* Concrete Semantics *)
 Definition Val : Type := nat.
@@ -133,31 +173,25 @@ Definition Aeval_t (V0:Valuation) (t:CTrace) (e:Aexpr) : nat :=
 Definition Beval_t (V0:Valuation) (t:CTrace) (e:Bexpr) : bool :=
   Beval (acc_val V0 t) e.
 
-Fixpoint trace_of' (V0: Valuation) (t:CTrace) (s:Stmt) : CTrace :=
-  match s with
-  | <{ x := e }> => [CTAsgn x (Aeval_t V0 t e)]
-  | <{s1 ; s2}> => let t1 := trace_of' V0 t s1 in
-                  let t2 := trace_of' V0 t1 s2 in
-                  t1 ++ t2
-  (* deterministic big-step parallelism*)
-  | <{s1 || s2}> => let t1 := trace_of' V0 t s1 in
-                  let t2 := trace_of' V0 t1 s2 in
-                  t1 ++ t2
-  | <{ if b {s1} {s2}}> => if Beval_t V0 t b then trace_of' V0 t s1 else trace_of' V0 t s2
-  | <{ skip }> => []
-  end.
+Fixpoint prog_trace__C (V0 : Valuation) (p:Program) : CTrace :=
+  match p with
+  | PNil => []
+  | PStep p s => let t1 := prog_trace__C V0 p in
+      t1 ++ stmt_trace__C (acc_val V0 t1) s
+  end
+with stmt_trace__C (V0 : Valuation) (s:Stmt) : CTrace :=
+       match s with
+       | <{ x := e }> => [CTAsgn x (Aeval V0 e)]
+       | <{ p1 || p2 }> => let t1 := prog_trace__C V0 p1 in
+      t1 ++ prog_trace__C (acc_val V0 t1) p2
+       | <{ if b p1 p2 fi }> => if Beval V0 b then prog_trace__C V0 p1 else prog_trace__C V0 p2
+       end.
 
-Definition trace_of (V0:Valuation) (s:Stmt) : CTrace :=
-  trace_of' V0 [] s.
+Example branch_ex__C : stmt_trace__C (_ !-> 0) <{if X <= 1 {Y := X} {Y := 1} fi}> = [CTAsgn Y 0].
+Proof. simpl. reflexivity. Qed.
 
-Definition has_trace__C (V0:Valuation) (s:Stmt) : Ensemble CTrace := Singleton _ (trace_of V0 s).
-
-
-Example branch_ex__C : has_trace__C (_ !-> 0) <{if X <= 1 {Y := X ; skip} {Y := 1}}> [CTAsgn Y 0].
-Proof. unfold has_trace__C, trace_of. simpl. unfold Aeval_t. simpl. reflexivity. Qed.
-
-Example par_ex__C : has_trace__C (_ !-> 0) <{(X := 1 ; Y := 2) || (X := Y ; Y := X)}> [CTAsgn X 1 ; CTAsgn Y 2 ; CTAsgn X 2 ; CTAsgn Y 2].
-Proof. unfold has_trace__C, trace_of, trace_of', Aeval_t. simpl. reflexivity. Qed.
+Example par_ex__C : stmt_trace__C (_ !-> 0) <{left_ex || right_ex}> = [CTAsgn X 1 ; CTAsgn Y 2 ; CTAsgn X 2 ; CTAsgn Y 2].
+Proof. simpl. rewrite 2 update_eq. reflexivity. Qed.
 
 (** Properties *)
 Fixpoint acc_subst (s0:sub) (t:STrace) : sub :=
@@ -175,9 +209,6 @@ Definition Aapply_t (t:STrace) (e:Aexpr) : Aexpr :=
 
 Definition Bapply_t (s0:sub) (t:STrace) (e:Bexpr) : Bexpr :=
   Bapply (acc_subst s0 t) e.
-
-Definition Bapply_t_id (t:STrace) (e:Bexpr) : Bexpr :=
-  Bapply (acc_subst_id t) e.
 
 Fixpoint pc (s0:sub) (t:STrace) : Bexpr :=
   match t with
@@ -199,17 +230,19 @@ Proof. splits.
 Qed.
 
 Example s_trace_ex := [STAsgn X 1 ; STAsgn Y 2; STAsgn X Y ; STAsgn Y X].
-Example completeness_par_ex : has_trace__S <{(X := 1 ; Y := 2) || (X := Y ; Y := X)}> s_trace_ex
-                              /\ is_abstraction (_ !-> 0) (trace_of (_ !-> 0) <{(X := 1 ; Y := 2) || (X := Y ; Y := X)}>) s_trace_ex
+Example completeness_par_ex : stmt_traces__S <{left_ex || right_ex}> s_trace_ex
+                              /\ is_abstraction (_ !-> 0) (stmt_trace__C (_ !-> 0) <{left_ex || right_ex}>) s_trace_ex
                               /\ Beval (_ !-> 0) (pc_id s_trace_ex) = true.
 Proof.
   splits.
-  - unfold has_trace__S, In. exists [STAsgn X 1; STAsgn Y 2]. exists [STAsgn X Y; STAsgn Y X]. splits.
-       + repeat constructor.
-       + eexists. eexists. splits. reflexivity.
-       + eexists. eexists. splits. reflexivity.
-  - unfold trace_of. simpl. unfold Aeval_t. simpl. rewrite 2 update_eq.
-    unfold is_abstraction. simpl.
+  - unfold stmt_traces__S. exists [STAsgn X 1; STAsgn Y 2]. exists [STAsgn X Y; STAsgn Y X]. splits.
+    + repeat constructor.
+    + eexists. eexists. splits. reflexivity.
+      * eexists. eexists. splits. reflexivity.
+    + eexists. eexists. splits. reflexivity.
+      * eexists. eexists. splits. reflexivity.
+  - simpl. rewrite 2 update_eq.
+    unfold is_abstraction, s_trace_ex. simpl.
     unfold acc_subst_id, acc_subst, s_trace_ex. simpl. rewrite 2 update_eq.
     extensionality x. unfold Comp, update.
     (* lol *)
@@ -235,23 +268,23 @@ Proof.
     + assumption.
 Qed.
 
-Lemma pc_app : forall V0 t1 t2, Beval V0 (pc_id (t1 ++ t2)) = Beval V0 (pc_id t1) && Beval V0 (pc (acc_subst_id t1) t2).
+Lemma pc_app : forall V0 s t1 t2, Beval V0 (pc s (t1 ++ t2)) = Beval V0 (pc s t1) && Beval V0 (pc (acc_subst s t1) t2).
 Proof.
   induction t2.
-  - simpl. destruct (Beval V0 (pc_id t1)); reflexivity.
+  - simpl. destruct (Beval V0 (pc s t1)); reflexivity.
   - destruct a.
     + assumption.
     + unfold pc_id in *. simpl. rewrite IHt2. simpl. unfold Bapply_t, acc_subst_id. rewrite acc_subst_app.
       (* this is a mess, but it's just rearranging some conjunctions *)
       rewrite 2 andb_assoc. rewrite andb_comm. rewrite andb_assoc. rewrite andb_comm.
-      rewrite andb_comm with (b1 := Beval V0 (pc (acc_subst id_sub t1) t2)). rewrite andb_assoc. reflexivity.
+      rewrite andb_comm with (b1 := Beval V0 (pc (acc_subst s t1) t2)). rewrite andb_assoc. reflexivity.
 Qed.
 
-Lemma trace_seq_app : forall V s1 s2, trace_of V <{s1 ; s2}> = trace_of V s1 ++ trace_of' V (trace_of V s1) s2.
-Proof.
-  intros. destruct(trace_of V s1) eqn:H;
-    unfold trace_of in *; simpl; rewrite H; reflexivity.
-Qed.
+(* Lemma trace_seq_app : forall V s1 s2, trace_of V <{s1 ; s2}> = trace_of V s1 ++ trace_of' V (trace_of V s1) s2. *)
+(* Proof. *)
+(*   intros. destruct (trace_of V s1) eqn:H; *)
+(*     unfold trace_of in *; simpl; rewrite H; reflexivity. *)
+(* Qed. *)
 
 Lemma acc_val_app : forall V0 t1 t2,
     acc_val V0 (t1 ++ t2) = acc_val (acc_val V0 t1) t2.
@@ -267,7 +300,7 @@ Proof.
   - simpl. constructor. assumption.
 Qed.
 
-Lemma par_all_left : forall s1 s2 t1 t2, has_trace__S s1 t1 -> has_trace__S s2 t2 -> has_trace__S <{s1 || s2}> (t1 ++ t2).
+Lemma par_all_left : forall s1 s2 t1 t2, prog_traces__S s1 t1 -> prog_traces__S s2 t2 -> stmt_traces__S <{s1 || s2}> (t1 ++ t2).
 Proof.
   intros. exists t1. exists t2. splits.
   - apply interleave_degen.
@@ -275,54 +308,39 @@ Proof.
   - assumption.
 Qed.
 
-Lemma is_abstraction_asgn : forall V0 t t' x e,
-    is_abstraction V0 t t' -> is_abstraction V0 (t::CTAsgn x (Aeval_t V0 t e)) (t'::STAsgn x e).
-Proof.
-  intros. unfold is_abstraction, acc_subst_id in *. simpl. unfold Aeval_t. rewrite H. simpl.
-  rewrite asgn_sound. reflexivity.
-Qed.
-
-Lemma is_abstraction_step : forall V0 t t' x, exists y,
-    is_abstraction V0 t t' -> is_abstraction V0 (t::x) (t'::y).
-Proof.
-  intros. dependent destruction x.
-  - exists (STAsgn x v). intro.
-    assert (v = Aeval_t V0 t v). { unfold Aeval_t. reflexivity. }
-    rewrite H0. apply is_abstraction_asgn. assumption.
-Qed.
-
-Lemma trace_acc_val : forall V0 t s, trace_of' V0 t s = trace_of (acc_val V0 t) s.
-Proof.
-  intros. induction t.
-  - simpl. unfold trace_of. reflexivity.
-  - destruct a; induction s.
-    + simpl. unfold trace_of. simpl. unfold Aeval_t. reflexivity.
-    + simpl in *. rewrite IHs1. unfold trace_of. subst; simpl.
-Admitted.
-
 Lemma pc_monotone : forall V0 t t', Beval V0 (pc_id (t ++ t')) = true ->
                                Beval V0 (pc_id t) = true /\ Beval V0 (pc (acc_subst_id t) t') = true.
-Proof. intros. rewrite pc_app in H. apply andb_true_iff in H. assumption. Qed.
+Proof. intros. unfold pc_id, acc_subst_id in *. rewrite pc_app in H. apply andb_true_iff in H. assumption. Qed.
 
-Theorem soundness : forall V0 s t,
-    has_trace__S s t ->
+Theorem soundness : forall p t V0,
+    prog_traces__S p t ->
     Beval V0 (pc_id t) = true ->
-    exists t', has_trace__C V0 s t'
-          /\ is_abstraction V0 t' t.
+    exists t', prog_trace__C V0 p = t'
+        /\ is_abstraction V0 t' t.
 Proof.
-  intros. dependent induction s.
-  - exists [CTAsgn x (Aeval V0 e)]. splits.
-    + inversion H; subst. unfold is_abstraction, acc_subst_id. simpl.
-      rewrite asgn_sound. rewrite comp_id. reflexivity.
-  - inversion H. destruct H1 as [t' [Happ [Hs1 Hs2]]].
-    rewrite Happ in H0. apply pc_monotone in H0. destruct H0.
-    destruct (IHs1 x) as [t1 [t1Comp t1Abs]]; try assumption.
-    destruct (IHs2 t') as [t2 [t2Comp t2Abs]]; try assumption.
-    shelve.
-    exists (t1 ++ t2). splits.
-    + unfold has_trace__C in *. unfold trace_of in *. simpl.
-      rewrite trace_acc_val. rewrite <- t1Comp. rewrite <- t2Comp. simpl.
-      (* did I fuck up the definitions somehow? this all seems very off *)
+  dependent induction p; intros.
+  - exists []. splits. inversion H. unfold is_abstraction. simpl. apply comp_id.
+  - dependent induction s;
+      destruct H as [t1 [t2 [Happ [Hprog Hstep]]]];
+      rewrite Happ in H0; unfold pc_id in H0; rewrite pc_app in H0; rewrite andb_true_iff in H0; destruct H0;
+      destruct (IHp t1 V0 Hprog H) as [t' [IHprog IHabs]].
+    + exists (t' :: CTAsgn x (Aeval_t V0 t' e)). splits.
+      * simpl. rewrite IHprog. unfold Aeval_t. reflexivity.
+      * inversion Hstep. unfold is_abstraction in *. simpl. rewrite Happ. rewrite <- H1. unfold acc_subst_id in *. rewrite acc_subst_app.
+        simpl. rewrite asgn_sound. unfold Aeval_t. rewrite IHabs. reflexivity.
+    + destruct Hstep; destruct H1 as [branch [cont [HApp1 [Hbranch Hcont]]]];
+        inversion Hbranch; subst; rewrite pc_app in H0;
+        rewrite andb_true_iff in H0; destruct H0; simpl in H0; rewrite andb_true_r in H0.
+      * exists (prog_trace__C V0 p ++ prog_trace__C (acc_val V0 (prog_trace__C V0 p)) s1). splits.
+        ** simpl. unfold Bapply_t in H0. simpl in H0. rewrite 2 IHabs. rewrite comp_subB. unfold acc_subst_id.
+           rewrite H0. reflexivity.
+        ** admit. (* true branch maintaints abstraction *)
+      * exists (prog_trace__C V0 p ++ prog_trace__C (acc_val V0 (prog_trace__C V0 p)) s2). splits.
+        ** simpl. unfold Bapply_t in H0. simpl in H0. rewrite 2 IHabs. rewrite comp_subB. unfold acc_subst_id.
+           apply negb_true_iff in H0. rewrite H0. rewrite IHabs. unfold acc_subst_id. reflexivity.
+        ** admit. (* false branch maintains abstraction *)
+    + (* this is actually not true, since an abstract trace may choose a concretely "impossible" order of execution, huh *)
+Admitted.
 
 Theorem completeness : forall s V0 , exists ts,
     has_trace__S s ts /\ is_abstraction V0 (trace_of V0 s) ts /\ Beval V0 (pc_id ts) = true.
