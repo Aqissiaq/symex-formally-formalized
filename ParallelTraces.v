@@ -385,8 +385,66 @@ Proof.
     + assumption.
 Qed.
 
-(** skipping "simple" completeness for now
- to instead do trace equivalence *)
+Lemma completeness_step : forall s s' t0 t t0' V0,
+    Cstep V0 (s, t0) (s', t) ->
+    Beval V0 (pc t0') = true ->
+    Comp V0 (acc_subst_id t0') = acc_val V0 t0 ->
+    exists t', (s, t0') ->s (s', t')
+        /\ Beval V0 (pc t') = true
+        /\ Comp V0 (acc_subst_id t') = acc_val V0 t.
+Proof.
+  intros. dependent induction H;
+    try (eexists; splits; [constructor | assumption | assumption]).
+  - eexists. splits.
+    + constructor.
+    + simpl. assumption.
+    + unfold acc_subst_id in *. simpl. unfold Aeval_t.
+      rewrite asgn_sound. rewrite H1. reflexivity.
+  - edestruct IHCstep as [step_t [step_comp [step_pc step_abs]]];
+      try reflexivity; try assumption.
+    eexists. splits;
+      try (apply SSeq_step; apply step_comp); assumption.
+  - edestruct IHCstep as [step_t [step_comp [step_pc step_abs]]];
+      try reflexivity; try assumption.
+    eexists. splits;
+      try (apply SParLeft_step; apply step_comp); assumption.
+  - edestruct IHCstep as [step_t [step_comp [step_pc step_abs]]];
+      try reflexivity; try assumption.
+    eexists. splits;
+      try (apply SParRight_step; apply step_comp); assumption.
+  - eexists. splits.
+    + apply SIfTrue_step.
+    + simpl. apply andb_true_iff. splits.
+      * unfold Bapply_t. rewrite <- comp_subB. rewrite H1. unfold Beval_t in H. assumption.
+      * assumption.
+    + unfold acc_subst_id. simpl. assumption.
+  - eexists. splits.
+    + apply SIfFalse_step.
+    + simpl. apply andb_true_iff. splits.
+      * apply negb_true_iff. unfold Bapply_t. rewrite <- comp_subB. rewrite H1. unfold Beval_t in H. assumption.
+      * assumption.
+    + unfold acc_subst_id. simpl. assumption.
+Qed.
+
+Theorem completeness : forall s s' t0 t t0' V0,
+    multi_Cstep V0 (s, t0) (s', t) ->
+    Beval V0 (pc t0') = true ->
+    Comp V0 (acc_subst_id t0') = acc_val V0 t0 ->
+    exists t', (s, t0') ->* (s', t')
+        /\ Beval V0 (pc t') = true
+        /\ Comp V0 (acc_subst_id t') = acc_val V0 t.
+Proof.
+  intros. dependent induction H.
+  - eexists. splits; try (apply rtn1_refl); assumption.
+  - destruct y. edestruct  IHclos_refl_trans_n1 as [t' [IHcomp [IHpc IHabs]]];
+      try reflexivity; try assumption.
+    destruct (completeness_step _ _ _ _ t' _ H) as [t_step [Hstep [Hpc Habs]]]; try assumption.
+    eexists. splits.
+    + econstructor. apply Hstep. apply IHcomp.
+    + apply Hpc.
+    + apply Habs.
+Qed.
+
 
 Definition subst_equiv (s s': sub) := forall V0, Comp V0 s = Comp V0 s'.
 Definition pc_equiv (t t': STrace) := forall V0, Beval V0 (pc t) = true <-> Beval V0 (pc t') = true.
