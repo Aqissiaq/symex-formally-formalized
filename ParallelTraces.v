@@ -367,7 +367,6 @@ Proof.
     rewrite <- comp_subB in H. unfold Beval_t. rewrite H1. assumption.
 Qed.
 
-
 Theorem correctness : forall s s' t0 t t0' V0,
     (s, t0) ->* (s', t) ->
     Beval V0 (pc t) = true ->
@@ -385,21 +384,22 @@ Proof.
     + assumption.
 Qed.
 
+Definition is_abstraction (V0:Valuation) (t:CTrace) (t':STrace) : Prop :=
+  Beval V0 (pc t') = true /\ Comp V0 (acc_subst_id t') = acc_val V0 t.
+
 Lemma completeness_step : forall s s' t0 t t0' V0,
     Cstep V0 (s, t0) (s', t) ->
-    Beval V0 (pc t0') = true ->
-    Comp V0 (acc_subst_id t0') = acc_val V0 t0 ->
+    is_abstraction V0 t0 t0' ->
     exists t', (s, t0') ->s (s', t')
-        /\ Beval V0 (pc t') = true
-        /\ Comp V0 (acc_subst_id t') = acc_val V0 t.
+        /\ is_abstraction V0 t t'.
 Proof.
   intros. dependent induction H;
-    try (eexists; splits; [constructor | assumption | assumption]).
-  - eexists. splits.
+    try (eexists; splits; destruct H0; [constructor | assumption | assumption]).
+  - eexists. splits; destruct H0.
     + constructor.
     + simpl. assumption.
     + unfold acc_subst_id in *. simpl. unfold Aeval_t.
-      rewrite asgn_sound. rewrite H1. reflexivity.
+      rewrite asgn_sound. rewrite e1. reflexivity.
   - edestruct IHCstep as [step_t [step_comp [step_pc step_abs]]];
       try reflexivity; try assumption.
     eexists. splits;
@@ -412,39 +412,37 @@ Proof.
       try reflexivity; try assumption.
     eexists. splits;
       try (apply SParRight_step; apply step_comp); assumption.
-  - eexists. splits.
+  - eexists. splits; destruct H0.
     + apply SIfTrue_step.
     + simpl. apply andb_true_iff. splits.
-      * unfold Bapply_t. rewrite <- comp_subB. rewrite H1. unfold Beval_t in H. assumption.
+      * unfold Bapply_t. rewrite <- comp_subB. rewrite e0. unfold Beval_t in H. assumption.
       * assumption.
     + unfold acc_subst_id. simpl. assumption.
-  - eexists. splits.
+  - eexists. splits; destruct H0.
     + apply SIfFalse_step.
     + simpl. apply andb_true_iff. splits.
-      * apply negb_true_iff. unfold Bapply_t. rewrite <- comp_subB. rewrite H1. unfold Beval_t in H. assumption.
+      * apply negb_true_iff. unfold Bapply_t. rewrite <- comp_subB. rewrite e0. unfold Beval_t in H. assumption.
       * assumption.
     + unfold acc_subst_id. simpl. assumption.
 Qed.
 
 Theorem completeness : forall s s' t0 t t0' V0,
     multi_Cstep V0 (s, t0) (s', t) ->
-    Beval V0 (pc t0') = true ->
-    Comp V0 (acc_subst_id t0') = acc_val V0 t0 ->
+    is_abstraction V0 t0 t0' ->
     exists t', (s, t0') ->* (s', t')
-        /\ Beval V0 (pc t') = true
-        /\ Comp V0 (acc_subst_id t') = acc_val V0 t.
+        /\ is_abstraction V0 t t'.
 Proof.
   intros. dependent induction H.
-  - eexists. splits; try (apply rtn1_refl); assumption.
-  - destruct y. edestruct  IHclos_refl_trans_n1 as [t' [IHcomp [IHpc IHabs]]];
+  - eexists. splits; destruct H0; try (apply rtn1_refl); assumption.
+  - destruct y. edestruct IHclos_refl_trans_n1 as [t' [IHcomp [IHpc IHabs]]];
       try reflexivity; try assumption.
     destruct (completeness_step _ _ _ _ t' _ H) as [t_step [Hstep [Hpc Habs]]]; try assumption.
+    split. assumption. assumption.
     eexists. splits.
     + econstructor. apply Hstep. apply IHcomp.
     + apply Hpc.
     + apply Habs.
 Qed.
-
 
 Definition subst_equiv (s s': sub) := forall V0, Comp V0 s = Comp V0 s'.
 Definition pc_equiv (t t': STrace) := forall V0, Beval V0 (pc t) = true <-> Beval V0 (pc t') = true.
@@ -477,27 +475,136 @@ Proof.
     try assumption.
 Qed.
 
-Definition is_abstract_trace {V0:Valuation} {s s': Stmt} {t':CTrace} (c : multi_Cstep V0 (s, []) (s', t')) (t: STrace) :=
-  (s, []) ->* (s', t) /\ Beval V0 (pc t) = true /\ Comp V0 (acc_subst_id t) = acc_val V0 t'.
+(** Completeness modulo trace equivalence *)
+(* now that concrete computations are also nondeterministic, result is maybe useful... *)
 
-Lemma foo : forall V V' s s' x, Comp V s x = Comp V s' x -> Comp V' s x = Comp V' s' x.
-Proof. intros. unfold Comp in *.
-       destruct (s x); induction (s' x); simpl in *; try assumption.
-       - admit.
-         - inversion H; subst.
+Lemma if_wf_s1 : forall b s' s, s <> <{if b {s} {s'}}>.
+Proof. dependent induction s; try discriminate.
+       intro. inversion H; subst. apply IHs1. assumption.
+Qed.
 
-(* empty starting trace for convenience *)
-Theorem completeness_reduced : forall s s' tc t t' V0
-    (* there is a concrete computation *)
-    (C : multi_Cstep V0 (s, []) (s', tc)),
-    is_abstract_trace C t ->
-    is_abstract_trace C t' ->
-    t ~ t'.
+Lemma if_wf_s2 : forall b s s', s' <> <{if b {s} {s'}}>.
+Proof. dependent induction s'; try discriminate.
+       intro. inversion H; subst. apply IHs'2. assumption.
+Qed.
+
+Lemma no_stuttering__S : forall s t t',
+    (s, t) ->s (s, t') -> t = t'.
 Proof.
-  intros.
-  destruct H as [HComp [HPC HSub]]. destruct H0 as [HComp' [HPC' HSub']].
-  remember (s, []) as p. destruct p. apply pair_equal_spec in Heqp. destruct Heqp.
-  remember (s', tc) as p. destruct p. apply pair_equal_spec in Heqp. destruct Heqp.
-  induction C; subst.
-  - splits.
-    intro.
+  intros. dependent induction H; try auto.
+  - eapply IHSstep; reflexivity.
+  - eapply IHSstep; reflexivity.
+  - eapply IHSstep; reflexivity.
+  - apply if_wf_s1 in x. contradiction.
+  - apply if_wf_s2 in x. contradiction.
+Qed.
+
+Lemma par_skip_left_wf : forall s t t', (<{skip || s}>, t) ->s (s, t') -> t = t'.
+Proof.
+  intros. dependent induction H; try auto.
+  - apply SPar_right_disjoint in x. contradiction.
+  - eapply IHSstep; reflexivity.
+Qed.
+
+Lemma par_skip_right_wf : forall s t t', (<{s || skip}>, t) ->s (s, t') -> t = t'.
+Proof.
+  intros. dependent induction H; try auto.
+  - eapply IHSstep; reflexivity.
+  - apply SPar_left_disjoint in x. contradiction.
+Qed.
+
+(* if two traces are both abstractions, then they are equivalent *)
+
+Theorem completeness_reduced_step : forall V0 s s' t0 t0' t t' t'',
+    Cstep V0 (s, t0) (s', t) ->
+    is_abstraction V0 t0 t0' ->
+    (* if t' is an abstraction… *)
+    (s, t0') ->s (s', t') -> is_abstraction V0 t t' ->
+    (* … and t'' is an abstraction… *)
+    (s, t0') ->s (s', t'') -> is_abstraction V0 t t'' ->
+    (* then they must be equivalent *)
+    t' ~ t''.
+Proof.
+  intros. dependent induction H.
+  - inversion H1; inversion H3; subst. reflexivity.
+  - inversion H1; inversion H3; subst; try reflexivity.
+    + edestruct IHCstep; try reflexivity; try assumption.
+      split; assumption.
+    + exfalso. destruct (skip_stuck t''). exists s2. exists t'. assumption.
+    + exfalso. destruct (skip_stuck t'). exists s2. exists t''. assumption.
+  - inversion H1; inversion H3; subst; try reflexivity.
+    + exfalso. destruct (skip_stuck t0'). exists s2. exists t'. assumption.
+    + exfalso. destruct (skip_stuck t''). exists s2. exists t'. assumption.
+    + exfalso. destruct (skip_stuck t'). exists s2. exists t''. assumption.
+  - inversion H1; inversion H3; subst; try reflexivity;
+      try (apply no_stuttering__S in H1; apply no_stuttering__S in H3;
+           subst; reflexivity).
+    + edestruct IHCstep; try reflexivity; try assumption.
+      split; assumption.
+    + exfalso. destruct (skip_stuck t''). exists s''. exists t'. assumption.
+    + edestruct IHCstep; try reflexivity; try assumption. constructor.
+      split; assumption.
+    + exfalso. destruct (skip_stuck t'). exists s''. exists t''. assumption.
+    + edestruct IHCstep; try reflexivity; try assumption. constructor.
+      split; assumption.
+    + apply no_stuttering__S in H11. subst. reflexivity.
+  - inversion H1; inversion H3; subst; try reflexivity;
+      try (apply no_stuttering__S in H1; apply no_stuttering__S in H3;
+           subst; reflexivity).
+    + edestruct IHCstep; try reflexivity; try assumption.
+      split; assumption.
+    + edestruct IHCstep; try reflexivity; try assumption. constructor.
+      split; assumption.
+    + exfalso. destruct (skip_stuck t''). exists s''. exists t'. assumption.
+    + exfalso. destruct (skip_stuck t'). exists SSkip. exists t''. assumption.
+    + edestruct IHCstep; try reflexivity; try assumption. constructor.
+      split; assumption.
+    + exfalso. destruct (skip_stuck t'). exists s''. exists t''. assumption.
+  - inversion H1; inversion H3; subst; try reflexivity.
+    (* these cases are the true and false step for if b {s} {s}*)
+    (* they are not actually equivalent with the current (forall V) pc_equiv *)
+    + admit.
+    + admit.
+  - inversion H1; inversion H3; subst; try reflexivity.
+    + admit.
+    + admit.
+  - inversion H1; inversion H3; subst; try reflexivity;
+      try (exfalso; destruct (skip_stuck t0'); eexists; eexists; apply H5);
+      try (exfalso; destruct (skip_stuck t''); eexists; eexists; apply H5).
+    + exfalso; destruct (skip_stuck t0'); eexists; eexists; apply H11.
+    + inversion H14; subst. apply par_skip_left_wf in H11. apply par_skip_left_wf in H5. subst. reflexivity.
+    + apply par_skip_left_wf in H5. subst. reflexivity.
+    + symmetry in H12. apply SPar_left_disjoint in H12. contradiction.
+    + apply SPar_right_disjoint in H11. contradiction.
+    + apply par_skip_left_wf in H8. subst. reflexivity.
+    + apply SPar_right_disjoint in H12. contradiction.
+    + apply SPar_left_disjoint in H12. contradiction.
+  - inversion H1; inversion H3; subst; try reflexivity;
+      try (exfalso; destruct (skip_stuck t0'); eexists; eexists; apply H5);
+      try (exfalso; destruct (skip_stuck t''); eexists; eexists; apply H5);
+      try (apply par_skip_right_wf in H5; subst; reflexivity);
+      try (apply SPar_right_disjoint in H12; contradiction);
+      try (apply SPar_left_disjoint in H12; contradiction).
+    + inversion H14; subst. apply par_skip_right_wf in H11. apply par_skip_right_wf in H5. subst. reflexivity.
+    + exfalso; destruct (skip_stuck t0'); eexists; eexists; apply H11.
+    + apply par_skip_right_wf in H8. subst. reflexivity.
+    + apply SPar_left_disjoint in H11. contradiction.
+Admitted.
+
+Theorem completeness_reduced : forall V0 s s' t0 t0' t t' t'',
+    multi_Cstep V0 (s, t0) (s', t) ->
+    is_abstraction V0 t0 t0' ->
+    (* if t' is an abstraction… *)
+    (s, t0') ->* (s', t') -> is_abstraction V0 t t' ->
+    (* … and t'' is an abstraction… *)
+    (s, t0') ->* (s', t'') -> is_abstraction V0 t t'' ->
+    (* then they must be equivalent *)
+    t' ~ t''.
+Proof.
+  intros. dependent induction H.
+  - admit.
+  - destruct y.
+    (* problem: the symbolic execution steps might not follow the concrete steps exactly *)
+    (* solution: another big mess of excluding cases? *)
+    edestruct IHclos_refl_trans_n1; try reflexivity; try assumption.
+    edestruct (completeness_reduced_step V0 _ _ _ t0' _ t' t'' H).
