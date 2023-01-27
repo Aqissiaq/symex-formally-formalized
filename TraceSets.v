@@ -31,6 +31,8 @@ Import BasicMaps.
 
 From SymEx Require Import Traces.
 
+From SymEx Require Import Parallel.
+
 Open Scope com_scope.
 Open Scope string_scope.
 Open Scope trace_scope.
@@ -41,28 +43,13 @@ Example Y : Var := "y".
 
 Ltac splits := repeat (try split).
 
+(* Trying out the "continuation" style from mechanized semantics *)
 Inductive Program : Type :=
-| PNil
-| PStep (p: Program) (s:Stmt)
-with Stmt : Type :=
-| SAsgn (x:Var) (e:Aexpr)
-| SIf (b:Bexpr) (s1 s2:Program)
-| SPar (s1 s2:Program).
-
-Notation "x := y"  :=
-         (SAsgn x y)
-            (in custom com at level 0, x constr at level 0,
-             y at level 85, no associativity) : com_scope.
-Notation "'{' x '}'" := (PStep PNil x) (in custom com at level 80) : com_scope.
-Notation "x ';' .. ';' y ';' z" := (PStep (PStep .. (PStep PNil x) .. y) z)
-    (in custom com at level 79) : com_scope.
-Notation "x || y" :=
-         (SPar x y)
-           (in custom com at level 90, right associativity) : com_scope.
-Notation "'if' x y z 'fi'" :=
-         (SIf x y z)
-           (in custom com at level 89, x at level 99,
-            y at level 99, z at level 99) : com_scope.
+| PStop
+| PSeq (s:Stmt) (p:Program)
+| PParL (s:Stmt) (p:Program)
+| PParR (s:Stmt) (p:Program)
+.
 
 (** Symbolic semantics *)
 Inductive STrace_step : Type :=
