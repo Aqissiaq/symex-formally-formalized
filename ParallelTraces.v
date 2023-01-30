@@ -561,13 +561,22 @@ Proof.
       split; assumption.
     + exfalso. destruct (skip_stuck t'). exists s''. exists t''. assumption.
   - inversion H1; inversion H3; subst; try reflexivity.
-    (* these cases are the true and false step for if b {s} {s}*)
-    (* they are not actually equivalent with the current (forall V) pc_equiv *)
-    + admit.
-    + admit.
+    + (* a bit technical, but basically unfolding defs to show:
+       the false branch cannot be an abstraction in this starting configuration *)
+      (* TODO: wrap these up in a useful lemma*)
+      destruct H0, H4. simpl in H4. apply andb_true_iff in H4. destruct H4.
+      apply negb_true_iff in H4. unfold Beval_t in H. rewrite <- comp_subB in H4.
+      rewrite <- H5 in H. rewrite H in H4. discriminate.
+    + destruct H0, H2. simpl in H2. apply andb_true_iff in H2. destruct H2.
+      apply negb_true_iff in H2. unfold Beval_t in H. rewrite <- comp_subB in H2.
+      rewrite <- H5 in H. rewrite H in H2. discriminate.
   - inversion H1; inversion H3; subst; try reflexivity.
-    + admit.
-    + admit.
+    + destruct H0, H2. simpl in H2. apply andb_true_iff in H2. destruct H2.
+      unfold Beval_t in H. unfold Bapply_t in H2. rewrite <- comp_subB in H2.
+      rewrite <- H5 in H. rewrite H in H2. discriminate.
+    + destruct H0, H4. simpl in H4. apply andb_true_iff in H4. destruct H4.
+      unfold Beval_t in H. unfold Bapply_t in H4. rewrite <- comp_subB in H4.
+      rewrite <- H5 in H. rewrite H in H4. discriminate.
   - inversion H1; inversion H3; subst; try reflexivity;
       try (exfalso; destruct (skip_stuck t0'); eexists; eexists; apply H5);
       try (exfalso; destruct (skip_stuck t''); eexists; eexists; apply H5).
@@ -589,7 +598,15 @@ Proof.
     + exfalso; destruct (skip_stuck t0'); eexists; eexists; apply H11.
     + apply par_skip_right_wf in H8. subst. reflexivity.
     + apply SPar_left_disjoint in H11. contradiction.
-Admitted.
+Qed.
+
+Lemma skip_stuck_star : forall s t t', (SSkip, t) ->* (s, t') -> t = t' /\ s = SSkip.
+Proof.
+  intros. apply clos_rtn1_rt in H. apply clos_rt_rt1n in H.
+  dependent destruction H.
+  - split; reflexivity.
+  - destruct (skip_stuck t), y. exists s0. exists s1. apply H.
+Qed.
 
 Theorem completeness_reduced : forall V0 s s' t0 t0' t t' t'',
     multi_Cstep V0 (s, t0) (s', t) ->
@@ -602,7 +619,7 @@ Theorem completeness_reduced : forall V0 s s' t0 t0' t t' t'',
     t' ~ t''.
 Proof.
   intros. dependent induction H.
-  - admit.
+  - inversion H1; inversion H3; subst.
   - destruct y.
     (* problem: the symbolic execution steps might not follow the concrete steps exactly *)
     (* solution: another big mess of excluding cases? *)
