@@ -14,6 +14,9 @@ Notation "[ x ; .. ; y ; z ]" := (Tcons (Tcons .. (Tcons Tnil x) .. y) z)
 
 Open Scope trace_scope.
 
+Lemma cons_eq {A:Type} (x y:trace A) : forall a b, x::a = y::b -> x = y /\ a = b.
+Proof. intros. induction x; inversion H; subst; split; reflexivity. Qed.
+
 Fixpoint app {A:Type} (xs ys:trace A) : trace A :=
   match ys with
   | [] => xs
@@ -61,6 +64,13 @@ Proof.
     try assumption;
     discriminate.
 Qed.
+
+(* these should definitely be provable *)
+Axiom app_eq_app : forall {X:Type} (x1 x2 y1 y2: trace X),
+  x1++x2 = y1++y2 ->
+  exists l, (x1 = y1++l /\ y2 = l++x2) \/ (y1 = x1++l /\ x2 = l++y2).
+
+Axiom unit_unique : forall {A:Type} (x y:trace A), x = x ++ y -> y = [].
 
 Theorem cons_neq {A:Type} (x:trace A) (y:A) : x::y <> x.
 Proof. induction x.

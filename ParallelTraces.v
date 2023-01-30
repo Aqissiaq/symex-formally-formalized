@@ -190,21 +190,66 @@ Proof.
     apply IHclos_refl_trans_n1; reflexivity.
 Qed.
 
+Lemma trace_extends_step : forall s1 s2 t0 t,
+    (s1, t0) ->s (s2, t) ->
+    exists t', t = t0 ++ t'.
+Proof.
+  intros. dependent induction H.
+  - exists [STAsgn x e]. reflexivity.
+  - edestruct IHSstep as [t' IH]; try reflexivity.
+    exists t'. apply IH.
+  - exists []. reflexivity.
+  - edestruct IHSstep as [t' IH]; try reflexivity.
+    exists t'. apply IH.
+  - edestruct IHSstep as [t' IH]; try reflexivity.
+    exists t'. apply IH.
+  - exists []. reflexivity.
+  - exists []. reflexivity.
+  - exists [STCond b]. reflexivity.
+  - exists [STCond (BNot b)]. reflexivity.
+Qed.
+
+Lemma trace_extends : forall s1 s2 t t0,
+    (s1, t0) ->* (s2, t) ->
+    exists t', t = t0 ++ t'.
+Proof.
+  intros. dependent induction H.
+  - exists []. reflexivity.
+  - destruct y. destruct (trace_extends_step s s2 s0 t H) as [t' Hstep].
+    destruct (IHclos_refl_trans_n1 s1 s s0 t0) as [t0' IHt0]; try reflexivity.
+    exists (t0' ++ t'). rewrite app_assoc. subst. reflexivity.
+Qed.
+
 Lemma seq_second : forall s1 s2 t t',
     (s1, []) ->* (SSkip, t) ->
     (s2, t) ->* (SSkip, t') ->
-    (<{s1; s2}>, []) ->* (SSkip, t').
+    (<{s1; s2}>, []) ->* (SSkip, t')
+    /\ exists t'', t' = t ++ t'' /\ (s2, []) ->* (SSkip, t'').
 Proof.
-  intros. apply seq_first with (s := s2) in H.
+  intros. apply seq_first with (s := s2) in H. split.
   (* juggling transitivity properties *)
   apply clos_rt_rtn1. apply rt_trans with (y := (<{skip ; s2}>, t)).
   apply clos_rtn1_rt. apply H.
   apply clos_rt1n_rt. econstructor. apply SSeq_done.
   apply clos_rt_rt1n. apply clos_rtn1_rt. apply H0.
+  destruct (trace_extends _ _ _ _ H0) as [t'' X]. exists t''. split.
+  - assumption.
+  - subst. dependent induction H0.
+    + apply unit_unique in x. subst. constructor.
+    + inversion H1; subst.
 Qed.
 
 (** pipe dreams *)
-(* Theorem seq_traces_spec : forall s1 s2, Same_set _ (traces__S <{s1 ; s2}>) (Concatenate (traces__S s1) (traces__S s2)). *)
+Theorem seq_traces_spec : forall s1 s2, Same_set _ (traces__S <{s1 ; s2}>) (Concatenate (traces__S s1) (traces__S s2)).
+Proof.
+  intros. split; intros t H.
+  - admit.
+  - destruct H as [t1 [t2 [Happ [Hs1 Hs2]]]].
+    unfold traces__S in Hs1.
+    specialize (seq_first _ _ SSkip _ _ Hs1). intro.
+    specialize (seq_first _ _ SSkip _ _ Hs2). intro.
+
+
 (* Theorem par_traces_spec : forall s1 s2, Same_set _ (traces__S <{s1 || s2}>) (Interleave (traces__S s1) (traces__S s2)). *)
 
 
@@ -269,62 +314,6 @@ Proof.
   - simpl in H0. apply andb_true_iff in H0. destruct H0. assumption.
   - simpl in H0. apply andb_true_iff in H0. destruct H0. assumption.
 Qed.
-
-(* Lemma par_step_correct : forall s s' t t' t0 V0, *)
-(*     (s, t) ->s (s', t') -> *)
-(*     Beval V0 (pc t') = true -> *)
-(*     acc_val V0 t0 = Comp V0 (acc_subst id_sub t) -> *)
-(*     forall s0, exists tc, *)
-(*       Cstep V0 (<{s || s0}>, t0) (<{s' || s0}>, tc) *)
-(*       /\ Cstep V0 (<{s0 || s}>, t0) (<{s0 || s'}>, tc) *)
-(*       /\ acc_val V0 tc = Comp V0 (acc_subst_id t'). *)
-(* Proof. *)
-(*   intros. dependent induction H. *)
-(*   - exists (t0 :: (x, Aeval_t V0 t0 e)). splits. *)
-(*     + apply CParLeft_step. apply CAsgn_step. *)
-(*     + apply CParRight_step. apply CAsgn_step. *)
-(*     + unfold acc_subst_id, Aeval_t. simpl. rewrite asgn_sound. rewrite H1. reflexivity. *)
-(*   - edestruct (IHSstep s1 s2 t t') as [tc [comp [_ trace]]]; *)
-(*       try reflexivity; try assumption. *)
-(*     exists tc. splits. *)
-(*     + apply CParLeft_step. apply comp. *)
-(*     + apply CParRight_step. apply comp. *)
-(*     + assumption. *)
-(*   - edestruct (IHSstep s0 s'0 t t') as [tc [_ [comp trace]]]; *)
-(*       try reflexivity; try assumption. *)
-(*     exists tc. splits. *)
-(*     + apply CParLeft_step. apply comp. *)
-(*     + apply CParRight_step. apply comp. *)
-(*     + assumption. *)
-(*   - exists t0. *)
-(*     (* rewrite path condition just once *) *)
-(*     simpl in H0. apply andb_true_iff in H0. destruct H0. *)
-(*     unfold Bapply_t in H. rewrite <- comp_subB in H. *)
-(*     unfold acc_subst_id in H. rewrite <- H1 in H. unfold Beval_t. *)
-(*     splits; *)
-(*       [ apply CParLeft_step; apply CIfTrue_step *)
-(*       | apply CParRight_step; apply CIfTrue_step *)
-(*       | unfold acc_subst_id; simpl]; *)
-(*       assumption. *)
-(*   - exists t0. *)
-(*     simpl in H0. apply andb_true_iff in H0. destruct H0. *)
-(*     apply negb_true_iff in H. *)
-(*     unfold Bapply_t in H. rewrite <- comp_subB in H. *)
-(*     unfold acc_subst_id in H. rewrite <- H1 in H. unfold Beval_t. *)
-(*     splits; *)
-(*       [ apply CParLeft_step; apply CIfFalse_step *)
-(*       | apply CParRight_step; apply CIfFalse_step *)
-(*       | unfold acc_subst_id; simpl]; *)
-(*       assumption. *)
-(*   - exists t0. splits. *)
-(*     + apply CParLeft_step. apply CSkipLeft_step. *)
-(*     + apply CParRight_step. apply CSkipLeft_step. *)
-(*     + assumption. *)
-(*   - exists t0. splits. *)
-(*     + apply CParLeft_step. apply CSkipRight_step. *)
-(*     + apply CParRight_step. apply CSkipRight_step. *)
-(*     + assumption. *)
-(* Qed. *)
 
 Lemma pc_monotone_step : forall V0 s1 s2 t1 t2, (s1, t1) ->s (s2, t2) -> Beval V0 (pc t2) = true -> Beval V0 (pc t1) = true.
 Proof.
@@ -618,10 +607,15 @@ Theorem completeness_reduced : forall V0 s s' t0 t0' t t' t'',
     (* then they must be equivalent *)
     t' ~ t''.
 Proof.
-  intros. dependent induction H.
-  - inversion H1; inversion H3; subst.
-  - destruct y.
-    (* problem: the symbolic execution steps might not follow the concrete steps exactly *)
-    (* solution: another big mess of excluding cases? *)
-    edestruct IHclos_refl_trans_n1; try reflexivity; try assumption.
-    edestruct (completeness_reduced_step V0 _ _ _ t0' _ t' t'' H).
+  (* problem: the symbolic execution steps might not follow the concrete steps exactly *)
+  (* solution: another big mess of excluding cases? *)
+  intros V0 s s' t0 t0' t t' t'' H Habs0 Hcomp1 Habs1 Hcomp2 Habs2.
+  dependent induction H.
+  - admit.
+  - destruct y. edestruct IHclos_refl_trans_n1; try reflexivity; try assumption.
+    +
+  dependent destruction Hcomp1; dependent destruction Hcomp2.
+  (* no steps *)
+  - reflexivity.
+  - admit.
+    -
