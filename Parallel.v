@@ -68,3 +68,17 @@ Proof. intros s s' contra. destruct s;
          try (inversion contra; subst);
          apply IHs'2; assumption.
 Qed.
+
+Lemma SIf_true_disjoint : forall b s1 s2, <{if b {s1} {s2}}> <> s1.
+Proof. intros b s s' contra. destruct s';
+         induction s; try discriminate;
+         inversion contra; subst;
+         try (apply IHs1; assumption).
+Qed.
+
+Lemma SIf_false_disjoint : forall b s1 s2, <{ if b {s1}{s2} }> <> s2.
+Proof. intros b s s' contra. destruct s;
+         induction s'; try discriminate;
+         try (inversion contra; subst);
+         apply IHs'2; assumption.
+Qed.

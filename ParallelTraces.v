@@ -220,35 +220,34 @@ Proof.
     exists (t0' ++ t'). rewrite app_assoc. subst. reflexivity.
 Qed.
 
-Lemma seq_second : forall s1 s2 t t',
-    (s1, []) ->* (SSkip, t) ->
-    (s2, t) ->* (SSkip, t') ->
-    (<{s1; s2}>, []) ->* (SSkip, t')
-    /\ exists t'', t' = t ++ t'' /\ (s2, []) ->* (SSkip, t'').
-Proof.
-  intros. apply seq_first with (s := s2) in H. split.
-  (* juggling transitivity properties *)
-  apply clos_rt_rtn1. apply rt_trans with (y := (<{skip ; s2}>, t)).
-  apply clos_rtn1_rt. apply H.
-  apply clos_rt1n_rt. econstructor. apply SSeq_done.
-  apply clos_rt_rt1n. apply clos_rtn1_rt. apply H0.
-  destruct (trace_extends _ _ _ _ H0) as [t'' X]. exists t''. split.
-  - assumption.
-  - subst. dependent induction H0.
-    + apply unit_unique in x. subst. constructor.
-    + inversion H1; subst.
-Qed.
+(* Lemma seq_second : forall s1 s2 t t', *)
+(*     (s1, []) ->* (SSkip, t) -> *)
+(*     (s2, t) ->* (SSkip, t') -> *)
+(*     (<{s1; s2}>, []) ->* (SSkip, t') *)
+(*     /\ exists t'', t' = t ++ t'' /\ (s2, []) ->* (SSkip, t''). *)
+(* Proof. *)
+(*   intros. apply seq_first with (s := s2) in H. split. *)
+(*   (* juggling transitivity properties *) *)
+(*   apply clos_rt_rtn1. apply rt_trans with (y := (<{skip ; s2}>, t)). *)
+(*   apply clos_rtn1_rt. apply H. *)
+(*   apply clos_rt1n_rt. econstructor. apply SSeq_done. *)
+(*   apply clos_rt_rt1n. apply clos_rtn1_rt. apply H0. *)
+(*   destruct (trace_extends _ _ _ _ H0) as [t'' X]. exists t''. split. *)
+(*   - assumption. *)
+(*   - subst. dependent induction H0. *)
+(*     + apply unit_unique in x. subst. constructor. *)
+(*     + inversion H1; subst. *)
+(* Qed. *)
 
 (** pipe dreams *)
-Theorem seq_traces_spec : forall s1 s2, Same_set _ (traces__S <{s1 ; s2}>) (Concatenate (traces__S s1) (traces__S s2)).
-Proof.
-  intros. split; intros t H.
-  - admit.
-  - destruct H as [t1 [t2 [Happ [Hs1 Hs2]]]].
-    unfold traces__S in Hs1.
-    specialize (seq_first _ _ SSkip _ _ Hs1). intro.
-    specialize (seq_first _ _ SSkip _ _ Hs2). intro.
-
+(* Theorem seq_traces_spec : forall s1 s2, Same_set _ (traces__S <{s1 ; s2}>) (Concatenate (traces__S s1) (traces__S s2)). *)
+(* Proof. *)
+(*   intros. split; intros t H. *)
+(*   - admit. *)
+(*   - destruct H as [t1 [t2 [Happ [Hs1 Hs2]]]]. *)
+(*     unfold traces__S in Hs1. *)
+(*     specialize (seq_first _ _ SSkip _ _ Hs1). intro. *)
+(*     specialize (seq_first _ _ SSkip _ _ Hs2). intro. *)
 
 (* Theorem par_traces_spec : forall s1 s2, Same_set _ (traces__S <{s1 || s2}>) (Interleave (traces__S s1) (traces__S s2)). *)
 
@@ -297,6 +296,24 @@ Inductive Cstep (V0:Valuation) : relation CConfig :=
     Cstep V0 (<{skip || s}>, t) (s, t)
 | CParRight_done : forall s t,
     Cstep V0 (<{s || skip}>, t) (s, t).
+
+Lemma progress__C : forall V0 s t, s = SSkip \/ exists s' t', Cstep V0 (s, t) (s', t').
+Proof.
+  induction s; intros.
+  - right. exists SSkip. eexists. constructor.
+  - right. edestruct IHs1.
+    + exists s2. eexists. rewrite H. constructor.
+    + destruct H as [s' [t' IH]].
+      exists <{s'; s2}>. exists t'. apply CSeq_step. apply IH.
+  - right. edestruct IHs1.
+    + exists s2. eexists. rewrite H. constructor.
+    + destruct H as [s' [t' IH]].
+      exists <{s'|| s2}>. exists t'. apply CParLeft_step. apply IH.
+  - right. destruct (Beval_t V0 t b) eqn:Hbranch.
+    + exists s1. eexists. apply CIfTrue_step. assumption.
+    + exists s2. eexists. apply CIfFalse_step. assumption.
+  - left. reflexivity.
+Qed.
 
 Definition multi_Cstep (V0:Valuation) := clos_refl_trans_n1 _ (Cstep V0).
 Notation " c '=>*' V c'" := (multi_Cstep V c c') (at level 40).
@@ -597,6 +614,30 @@ Proof.
   - destruct (skip_stuck t), y. exists s0. exists s1. apply H.
 Qed.
 
+Lemma progress_step__S : forall s s' t t', (s, t) ->s (s', t') -> s <> s'.
+Proof.
+  intros. dependent induction H; intro.
+  - discriminate.
+  - inversion H0. eapply IHSstep in H2; try reflexivity. apply H2.
+  - apply (SSeq_disjoint _ _ H).
+  - inversion H0. eapply IHSstep in H2; try reflexivity. apply H2.
+  - inversion H0. eapply IHSstep in H2; try reflexivity. apply H2.
+  - apply (SPar_right_disjoint _ _ H).
+  - apply (SPar_left_disjoint _ _ H).
+  - apply (SIf_true_disjoint _ _ _ H).
+  - apply (SIf_false_disjoint _ _ _ H).
+Qed.
+
+Lemma progress_star__S : forall s s' t t', (s, t) ->* (s', t') -> s <> s' \/ t = t'.
+Proof.
+  intros. dependent induction H.
+  - right. reflexivity.
+  - destruct y. specialize (progress_step__S _ _ _ _ H). intro.
+    edestruct IHclos_refl_trans_n1; try reflexivity.
+    + left. admit.
+      + admit.
+Admitted.
+
 Theorem completeness_reduced : forall V0 s s' t0 t0' t t' t'',
     multi_Cstep V0 (s, t0) (s', t) ->
     is_abstraction V0 t0 t0' ->
@@ -609,13 +650,32 @@ Theorem completeness_reduced : forall V0 s s' t0 t0' t t' t'',
 Proof.
   (* problem: the symbolic execution steps might not follow the concrete steps exactly *)
   (* solution: another big mess of excluding cases? *)
+  (*           explicit progress lemma? *)
   intros V0 s s' t0 t0' t t' t'' H Habs0 Hcomp1 Habs1 Hcomp2 Habs2.
-  dependent induction H.
-  - admit.
-  - destruct y. edestruct IHclos_refl_trans_n1; try reflexivity; try assumption.
-    +
-  dependent destruction Hcomp1; dependent destruction Hcomp2.
-  (* no steps *)
-  - reflexivity.
-  - admit.
-    -
+  dependent destruction H.
+  - apply progress_star__S in Hcomp1. destruct Hcomp1.
+    + exfalso. apply H. reflexivity.
+    + apply progress_star__S in Hcomp2. destruct Hcomp2.
+      * exfalso. apply H0. reflexivity.
+      * subst. reflexivity.
+  - destruct y. dependent destruction Hcomp1; dependent destruction Hcomp2.
+    + reflexivity.
+    + assert (contra: (s', t') ->* (s', t'')) by (apply Relation_Operators.rtn1_trans with (y := y); assumption).
+      apply progress_star__S in contra. destruct contra.
+      * exfalso. apply H2. reflexivity.
+      * rewrite H2. reflexivity.
+    + assert (contra: (s', t'') ->* (s', t')) by (apply Relation_Operators.rtn1_trans with (y := y); assumption).
+      apply progress_star__S in contra. destruct contra.
+      * exfalso. apply H2. reflexivity.
+      * rewrite H2. reflexivity.
+    + assert (wish : y = y0) by admit. subst.
+      destruct y0.
+      assert (wish : s0 = s1) by admit. subst.
+      eapply completeness_reduced_step.
+      * apply H.
+      * admit. (* is_abstraction carries bvackward *)
+      * apply H1.
+      * apply Habs1.
+      * apply H2.
+      * apply Habs2.
+Admitted.
