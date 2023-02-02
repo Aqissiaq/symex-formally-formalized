@@ -16,6 +16,8 @@ From Coq Require Import Strings.String.
 From Coq Require Import Bool.Bool.
 From Coq Require Import Arith.EqNat. Import Nat.
 From Coq Require Import Init.Datatypes.
+From Coq Require Import Lists.List.
+Import ListNotations.
 From Coq Require Import Program.Equality.   (* for `dependent induction` *)
 (* which apparently (CTrees) smuggles in UIP(-equivalent) *)
 From Coq Require Import Logic.FunctionalExtensionality. (* for equality of substitutions *)
@@ -29,13 +31,11 @@ Import BasicExpr.
 From SymEx Require Import Maps.
 Import BasicMaps.
 
-From SymEx Require Import Traces.
-
 From SymEx Require Import Parallel.
 
 Open Scope com_scope.
 Open Scope string_scope.
-Open Scope trace_scope.
+Open Scope list_scope.
 
 Definition Var : Type := string.
 Example X : Var := "x".
@@ -43,20 +43,22 @@ Example Y : Var := "y".
 
 Ltac splits := repeat (try split).
 
-(* Trying out the "continuation" style from mechanized semantics *)
-Inductive Program : Type :=
-| PStop
-| PSeq (s:Stmt) (p:Program)
-| PParL (s:Stmt) (p:Program)
-| PParR (s:Stmt) (p:Program)
-.
-
 (** Symbolic semantics *)
 Inductive STrace_step : Type :=
 | STAsgn (x:Var) (e:Aexpr)
 | STCond (b:Bexpr).
 
-Definition STrace : Type := trace STrace_step.
+Definition STrace : Type := list STrace_step.
+
+Fixpoint can_step (s1 s2: Stmt)
+
+Example branch_ex : In _ (traces__S <{if X <= 1 {X := Y} {Y := 1}}>) [STCond <{X <= 1}> ; STAsgn X Y].
+Proof. apply Union_introl. eexists. splits. Qed.
+
+Example par_ex : traces__S <{(X := 1 ; Y := 2) || (X := Y ; Y := X)}> [STAsgn X 1 ; STAsgn X Y ; STAsgn Y X ; STAsgn Y 2].
+Proof.
+  apply Union_introl. eexists. eexists. eexists. splits.
+  - eexists. eexists. eexists. splits.
 
 Definition Concatenate (A B: Ensemble STrace) : Ensemble STrace :=
   fun t => exists t1 t2, t = t1 ++ t2 /\ A t1 /\ B t2.
