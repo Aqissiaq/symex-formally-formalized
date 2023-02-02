@@ -632,22 +632,22 @@ Lemma progress_star__S : forall s s' t t', (s, t) ->* (s', t') -> s <> s' \/ t =
 Proof.
   intros. dependent induction H.
   - right. reflexivity.
-  - destruct y. specialize (progress_step__S _ _ _ _ H). intro.
-    edestruct IHclos_refl_trans_n1; try reflexivity.
-    + left. admit.
-      + admit.
+  - destruct y. edestruct IHclos_refl_trans_n1; try reflexivity.
+    + dependent destruction s0; inversion H; subst.
+      * left. intro. subst. apply skip_stuck_star in H0. destruct H0. discriminate.
 Admitted.
 
-Theorem completeness_reduced : forall V0 s s' t0 t0' t t' t'',
-    multi_Cstep V0 (s, t0) (s', t) ->
-    is_abstraction V0 t0 t0' ->
+Theorem completeness_reduced : forall V0 s s' t t' t'',
+    multi_Cstep V0 (s, []) (s', t) ->
     (* if t' is an abstraction… *)
-    (s, t0') ->* (s', t') -> is_abstraction V0 t t' ->
+    (s, []) ->* (s', t') -> is_abstraction V0 t t' ->
     (* … and t'' is an abstraction… *)
-    (s, t0') ->* (s', t'') -> is_abstraction V0 t t'' ->
+    (s, []) ->* (s', t'') -> is_abstraction V0 t t'' ->
     (* then they must be equivalent *)
     t' ~ t''.
 Proof.
+  intros. dependent induction H; dependent induction H0; dependent induction H2; try reflexivity.
+  - destruct H3.
   (* problem: the symbolic execution steps might not follow the concrete steps exactly *)
   (* solution: another big mess of excluding cases? *)
   (*           explicit progress lemma? *)
@@ -668,12 +668,12 @@ Proof.
       apply progress_star__S in contra. destruct contra.
       * exfalso. apply H2. reflexivity.
       * rewrite H2. reflexivity.
-    + assert (wish : y = y0) by admit. subst.
-      destruct y0.
+          +
+    + destruct y, y0.
       assert (wish : s0 = s1) by admit. subst.
       eapply completeness_reduced_step.
       * apply H.
-      * admit. (* is_abstraction carries bvackward *)
+      * admit. (* is_abstraction carries backward *)
       * apply H1.
       * apply Habs1.
       * apply H2.
