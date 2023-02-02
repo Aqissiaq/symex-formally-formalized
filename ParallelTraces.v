@@ -637,17 +637,16 @@ Proof.
       * left. intro. subst. apply skip_stuck_star in H0. destruct H0. discriminate.
 Admitted.
 
-Theorem completeness_reduced : forall V0 s s' t t' t'',
-    multi_Cstep V0 (s, []) (s', t) ->
+Theorem completeness_reduced : forall V0 s s' t0 t0' t t' t'',
+    multi_Cstep V0 (s, t0) (s', t) ->
+    is_abstraction V0 t0 t0' ->
     (* if t' is an abstraction… *)
-    (s, []) ->* (s', t') -> is_abstraction V0 t t' ->
+    (s, t0') ->* (s', t') -> is_abstraction V0 t t' ->
     (* … and t'' is an abstraction… *)
-    (s, []) ->* (s', t'') -> is_abstraction V0 t t'' ->
+    (s, t0') ->* (s', t'') -> is_abstraction V0 t t'' ->
     (* then they must be equivalent *)
     t' ~ t''.
 Proof.
-  intros. dependent induction H; dependent induction H0; dependent induction H2; try reflexivity.
-  - destruct H3.
   (* problem: the symbolic execution steps might not follow the concrete steps exactly *)
   (* solution: another big mess of excluding cases? *)
   (*           explicit progress lemma? *)
@@ -668,7 +667,6 @@ Proof.
       apply progress_star__S in contra. destruct contra.
       * exfalso. apply H2. reflexivity.
       * rewrite H2. reflexivity.
-          +
     + destruct y, y0.
       assert (wish : s0 = s1) by admit. subst.
       eapply completeness_reduced_step.
