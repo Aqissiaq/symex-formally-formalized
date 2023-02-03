@@ -7,6 +7,7 @@ we include a parallel statement to allow for more interesting abstraction/reduct
 From Coq Require Import Strings.String.
 From Coq Require Import Bool.Bool.
 From Coq Require Import Arith.EqNat. Import Nat.
+From Coq Require Import ZArith Lia.
 From Coq Require Import Init.Datatypes.
 From Coq Require Import Program.Equality.   (* for `dependent induction` *)
 (* which apparently (CTrees) smuggles in UIP(-equivalent) *)
@@ -606,6 +607,18 @@ Proof.
     + apply SPar_left_disjoint in H11. contradiction.
 Qed.
 
+Theorem completeness_reduced_step_weaker : forall V0 s0 s1 s2 s' t0 t0' t0'' t t' t'',
+    Cstep V0 (s0, t0) (s', t) ->
+    is_abstraction V0 t0 t0' ->
+    is_abstraction V0 t0 t0'' ->
+    (* if t' is an abstraction… *)
+    (s1, t0') ->s (s', t') -> is_abstraction V0 t t' ->
+    (* … and t'' is an abstraction… *)
+    (s2, t0'') ->s (s', t'') -> is_abstraction V0 t t'' ->
+    (* then they must be equivalent *)
+    t' ~ t''.
+Proof. Admitted.
+
 Lemma skip_stuck_star : forall s t t', (SSkip, t) ->* (s, t') -> t = t' /\ s = SSkip.
 Proof.
   intros. apply clos_rtn1_rt in H. apply clos_rt_rt1n in H.
@@ -628,14 +641,53 @@ Proof.
   - apply (SIf_false_disjoint _ _ _ H).
 Qed.
 
+(* technical gadget for guaranteed progress *)
+
+Fixpoint stmt_weight (s : Stmt) : nat :=
+  match s with
+  | <{ skip }> => 1
+  | <{ _ := _ }> => 2
+  | <{s1 ; s2}> => stmt_weight s1 + stmt_weight s2
+  | <{s1 || s2}> => stmt_weight s1 + stmt_weight s2
+  | <{ if b {s1} {s2}}> => stmt_weight s1 + stmt_weight s2
+  end.
+
+Remark w_gt_zero: forall s, stmt_weight s > 0.
+Proof. induction s; simpl; lia. Qed.
+
+Lemma progress_weight_step : forall s s' t t', (s, t) ->s (s', t') -> stmt_weight s > stmt_weight s'.
+Proof.
+  intros. dependent induction H; simpl; try lia.
+  - assert (stmt_weight s1 > stmt_weight s2) by (eapply IHSstep; try reflexivity).
+    lia.
+  - assert (stmt_weight s0 > stmt_weight s'0) by (eapply IHSstep; try reflexivity).
+    lia.
+  - assert (stmt_weight s0 > stmt_weight s'0) by (eapply IHSstep; try reflexivity).
+    lia.
+  - assert (stmt_weight s2 > 0) by (apply w_gt_zero). lia.
+  - assert (stmt_weight s1 > 0) by (apply w_gt_zero). lia.
+Qed.
+
+Lemma progress_weight : forall s s' t t', (s, t) ->* (s', t') -> stmt_weight s >= stmt_weight s'.
+Proof.
+  intros. dependent induction H.
+  - auto.
+  - destruct y. apply progress_weight_step in H.
+    assert (stmt_weight s >= stmt_weight s0) by (eapply IHclos_refl_trans_n1; try reflexivity).
+    lia.
+Qed.
+
+Lemma stmt_weight_discr: forall s s', stmt_weight s <> stmt_weight s' -> s <> s'.
+Proof. intros s s' weights contra. subst. apply weights. reflexivity. Qed.
+
 Lemma progress_star__S : forall s s' t t', (s, t) ->* (s', t') -> s <> s' \/ t = t'.
 Proof.
   intros. dependent induction H.
   - right. reflexivity.
-  - destruct y. edestruct IHclos_refl_trans_n1; try reflexivity.
-    + dependent destruction s0; inversion H; subst.
-      * left. intro. subst. apply skip_stuck_star in H0. destruct H0. discriminate.
-Admitted.
+  - destruct y. apply progress_weight in H0. specialize (progress_weight_step _ _ _ _ H). intro.
+    assert (stmt_weight s <> stmt_weight s') by lia.
+    left. apply stmt_weight_discr. assumption.
+Qed.
 
 Theorem completeness_reduced : forall V0 s s' t0 t0' t t' t'',
     multi_Cstep V0 (s, t0) (s', t) ->
@@ -650,6 +702,7 @@ Proof.
   (* problem: the symbolic execution steps might not follow the concrete steps exactly *)
   (* solution: another big mess of excluding cases? *)
   (*           explicit progress lemma? *)
+  (*           simulation diagrams? *)
   intros V0 s s' t0 t0' t t' t'' H Habs0 Hcomp1 Habs1 Hcomp2 Habs2.
   dependent destruction H.
   - apply progress_star__S in Hcomp1. destruct Hcomp1.
@@ -668,12 +721,12 @@ Proof.
       * exfalso. apply H2. reflexivity.
       * rewrite H2. reflexivity.
     + destruct y, y0.
-      assert (wish : s0 = s1) by admit. subst.
-      eapply completeness_reduced_step.
+      eapply completeness_reduced_step_weaker.
       * apply H.
       * admit. (* is_abstraction carries backward *)
+      * admit. (* is_abstraction carries backward *)
       * apply H1.
-      * apply Habs1.
+      * assumption.
       * apply H2.
-      * apply Habs2.
+      * assumption.
 Admitted.
