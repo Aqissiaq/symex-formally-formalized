@@ -19,6 +19,7 @@ Open Scope trace_scope.
 Ltac splits := repeat (try split).
 
 (** Generalized context unfolding *)
+(** idea from: https://xavierleroy.org/cdf-mech-sem/CDF.FUN.html *)
 Inductive is_context: (Stmt -> Stmt) -> Prop :=
 | is_context_hole:
   is_context (fun a => a)
