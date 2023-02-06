@@ -31,3 +31,54 @@ lia.cache
 nia.cache
 nlia.cache
 nra.cache
+
+## LaTex stuff (https://gist.github.com/pramitbiswas/c8c108133f75d8a6528791f697d5bd53)
+## Core latex/pdflatex auxiliary files:
+*.aux
+*.lof
+*.log
+*.lot
+*.fls
+*.out
+*.toc
+*.fmt
+*.fot
+*.cb
+*.cb2
+.*.lb
+
+## Extra
+*.bit
+*.gz
+*.tui
+*.alg
+*.mp
+*.tmp
+*.top
+*.tui
+*.tex.bak
+*.bib.bak
+
+## Intermediate documents:
+*.dvi
+*.xdv
+*-converted-to.*
+# these rules might exclude image files for figures etc.
+# *.ps
+# *.eps
+# *.pdf
+
+## Generated if empty string is given at "Please type another file name for output:"
+.pdf
+
+## Bibliography auxiliary files (bibtex/biblatex/biber):
+# *.bbl
+*.bcf
+*.blg
+*-blx.aux
+*-blx.bib
+*.run.xml
+
+# auto folder when using emacs and auctex
+./auto/*
+*.el
