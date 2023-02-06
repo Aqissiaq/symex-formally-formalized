@@ -1,0 +1,83 @@
+\documentclass[submission,copyright,creativecommons]{eptcs}
+\providecommand{\event}{PLACES 2023} % Name of the event you are submitting to
+
+\usepackage{iftex}
+
+\ifpdf
+  \usepackage{underscore}         % Only needed if you use pdflatex.
+  \usepackage[T1]{fontenc}        % Recommended with pdflatex
+\else
+  \usepackage{breakurl}           % Not needed if you use pdflatex only.
+\fi
+
+\title{(Challenges of?) Formalizing Concurrent Symbolic Execution with Trace Semantics in Coq}
+\author{Åsmund Aqissiaq Arild Kløvstad
+\institute{UiO\\ Oslo, Norway}
+\institute{Institute of Informatics}
+\institute{PSY, maybe?}
+\email{aaklovst@ifi.uio.no}
+\and
+Eduard \& and/or others?
+\institute{UiO\\ Oslo, Norway}
+\institute{Institute of Informatics}
+\institute{PSY, maybe?}
+}
+
+\newcommand{\titlerunning}{Formalizing Concurrent Symbolic Execution}
+\newcommand{\authorrunning}{Å.A.A. Kløvstad}
+
+\hypersetup{
+  bookmarksnumbered,
+  pdftitle    = {\titlerunning},
+  pdfauthor   = {\authorrunning},
+  pdfsubject  = {PLACES 2023 talk proposal},               % Consider adding a more appropriate subject or description
+  pdfkeywords = {symbolic execution, concurrency, coq, trace semantics} % Uncomment and enter keywords specific to your paper
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+  This part is the abstract
+\end{abstract}
+
+\section*{Introduction}
+\begin{itemize}
+  \item Quick def. of symbolic execution
+  \item Recent formalization (\cite{boer2021})
+  \item Concurrency and reduction
+\end{itemize}
+
+\section*{Actual Content}
+\begin{itemize}
+  \item Frank and Marcello's transition systems in Coq
+        \begin{itemize}
+          \item $(s_{0} ; s, \sigma) \rightarrow_{S} (s, \sigma')$
+          \item correctness/soundness and completeness ($V \circ \sigma$)
+          \item proofs by induction on steps
+          \item variations? (IMP, procedure calls)
+        \end{itemize}
+  \item Trace semantics
+        \begin{itemize}
+          \item $(s_{0} ; s, \tau) \rightarrow_{S} (s, \tau')$ + ($V \circ \tau\downarrow$)
+          \item $(s, \tau) \rightarrow_{S} (s', \tau')$  with skip
+          \item Head-reductions in context (cite Xavier Leroy and Wright \& Felleisen)
+          \item pros and cons?
+                \begin{itemize}
+                  \item fewer rules
+                  \item skip-special case
+                \end{itemize}
+        \end{itemize}
+  \item Trace reduction?
+        \begin{itemize}
+          \item by equivalence relation
+          \item sound: can continue from equivalent trace (easy)
+          \item complete: don't reduce away necessary traces (hard)
+        \end{itemize}
+\end{itemize}
+
+\nocite{*}
+\bibliographystyle{eptcs}
+% the .bib-file from phd proposal, will need cleanup
+\bibliography{sources}
+\end{document}
