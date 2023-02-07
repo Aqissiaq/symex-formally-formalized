@@ -21,8 +21,7 @@ Ltac splits := repeat (try split).
 (** Generalized context unfolding *)
 (** idea from: https://xavierleroy.org/cdf-mech-sem/CDF.FUN.html *)
 Inductive is_context: (Stmt -> Stmt) -> Prop :=
-| is_context_hole:
-  is_context (fun a => a)
+| is_context_hole: is_context (fun x => x)
 | is_context_seq: forall s C,
     is_context C -> is_context (fun x => SSeq (C x) s)
 | is_context_par_left: forall s C,
@@ -140,7 +139,6 @@ Fixpoint acc_subst (s0:sub) (t:trace__S) : sub :=
                      (x !-> Aapply s e ; s)
   | t :: _ => acc_subst s0 t
   end.
-
 
 Definition Aapply_t (t:trace__S) (e:Aexpr) : Aexpr :=
   Aapply (acc_subst id_sub t) e.
