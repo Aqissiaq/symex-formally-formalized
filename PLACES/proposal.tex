@@ -3,7 +3,9 @@
 
 % just for me
 \usepackage[dvipsnames]{xcolor}
-\newcommand{\note}[1]{\color{WildStrawberry}{#1}\color{black}}
+\newcommand{\note}[1]{\color{BurntOrange}{#1}\color{black}}
+
+\usepackage{amsmath}
 
 \newtheorem{theorem}{Theorem}
 
@@ -16,20 +18,18 @@
   \usepackage{breakurl}           % Not needed if you use pdflatex only.
 \fi
 
-\title{(Challenges of?) Formalizing Concurrent Symbolic Execution with Trace Semantics in Coq}
+\title{Formalizing Concurrent Symbolic Execution with Trace Semantics in Coq}
 \author{Åsmund Aqissiaq Arild Kløvstad
 \institute{UiO\\ Oslo, Norway}
-\institute{Institute of Informatics}
-\institute{\note{PSY, maybe?}}
+\institute{Department of Informatics}
 \email{aaklovst@ifi.uio.no}
 \and
 Eduard \& and/or others?
 \institute{UiO\\ Oslo, Norway}
 \institute{Institute of Informatics}
-\institute{PSY, maybe?}
 }
 
-\newcommand{\titlerunning}{Formalizing Concurrent Symbolic Execution}
+\newcommand{\titlerunning}{Formalizing Concurrent Symbolic Execution in Coq}
 \newcommand{\authorrunning}{Åsmund A.A. Kløvstad}
 
 \hypersetup{
@@ -45,115 +45,123 @@ Eduard \& and/or others?
 
 \begin{abstract}
   Symbolic Execution (SE) is a technique for program analysis using symbolic expressions to abstract over program state,
-  thereby covering many program states simultaneously. SE has been used since the mid 70's~\cite{king1976symbolic,boyer1975select},
-  but its formal aspects have only recently begun to be explored by -- \note{among others} -- de Boer~\cite{boer2021} and Steinhöfel~\cite{steinhofel2020abstract}.
+  thereby covering many program states simultaneously. SE has been used since the mid 70's~\cite{king1976symbolic,boyer1975select}
+  in both testing and analysis, but its formal aspects have only recently begun to be explored~\cite{boer2021}
+  and unified~\cite{Steinhoefel2022}.
 
-  \note{Something about trace semantics}
+  A challenge facing SE is ``state space explosion''. Even simple programs can result in a
+  large number of program states so that exploring them all becomes infeasible.
+  In a concurrent setting the problem becomes even worse and some reduction techniques are needed to reason
+  about all possible interleavings.
+
+  One way to represent these executions is by their traces which can allow for easy composition~\cite{din2022lagc}
+  and reordering of non-interfering events~\cite{Mazurkiewicz1977}.
 
   We present a Coq formalization of sections 1-3 of de Boer et al.'s work, extend the language with parallelism, and
-  extend the model to symbolic trace semantics. Finally we consider a context-based presentation of the semantics
-  in the style of Felleisen~\cite{FELLEISEN1992235} and compare the two approaches.
+  extend the model to symbolic and concrete trace semantics. Finally we consider a context-based presentation of the semantics
+  in the style of Felleisen~\cite{FELLEISEN1992235} and lay out a direction for future work.
 \end{abstract}
 
-\subsection*{Introduction}
-\begin{itemize}
-  \item Quick def. of symbolic execution
-  \item Recent formalization (\cite{boer2021})
-  \item Concurrency and reduction
-  \item plan for the rest of this
-\end{itemize}
+\section{Symbolic Execution Formally Explained}
+This section gives an overview of de Boer et al.'s formal account of SE
+followed by a description of our Coq implementation. It consists of symbolic and concrete semantics
+realized as transition systems and correctness and completeness results relating the two.
 
-\subsection*{Frank and Marcello's transition systems (in Coq)}
-\note{This ends up rehashing a lot and taking a lot of space.
-  Can I say ``just go read Frank and Marcello's paper'' and/or just list definitions?}
-\begin{itemize}
-  \item $(s_{0} ; s, \sigma) \rightarrow_{S} (s, \sigma')$
-  \item correctness/soundness and completeness ($V \circ \sigma$)
-  \item proofs by induction on steps
-  \item variations (IMP, procedure calls)
-\end{itemize}
-This section gives an overview of de Boer et al.'s formalization of symbolic execution
-and our Coq implementation of it. It consists of both symbolic and concrete semantics
-realized as transition systems as well as correctness and completeness results relating the two.
-
-The most basic setting for symbolic execution, presented in \cite[sec. 2]{boer2021},
+\subsection{de Boer et al. Formally Explained}
+The most basic setting for SE, presented in \cite[sec. 2]{boer2021},
 is a small imperative language with assignment, sequential composition, branching (\texttt{if})
 and iteration (\texttt{while}). \emph{Statements} in this language are denoted by $s, s', s_{0}...$
 Additionally we consider a set of \emph{variables} $Var$ and \emph{expressions} $Expr$ consisting of variables and
 standard operations. Variables are denoted by $x,y,z...$ and expressions by $e, e', e_{0}...$
 Both expressions and statements are assumed to be well-typed.
 
-In the Coq implementation expressions are divided into boolean and arithmetic expressions,
-and both expressions and statements are inductive types. $Var$ is the type of strings.
-
 With these definitions we can start to define symbolic semantics. The (symbolic) state is realized by a
-  \emph{substitution} -- a function $Var \rightarrow Expr$. A substitution is denoted by $\sigma, \sigma'...$
+\emph{substitution} -- a function $Var \rightarrow Expr$. A substitution is denoted by $\sigma, \sigma'...$
 and an update by $\sigma[x := e]$. Notably, since a lone variable is also an expressions, we can construct the
-identity substitution $x \mapsto x$, and a substitution can be (inductively) applied to an expression resulting
+identity substitution $id : x \mapsto x$, and a substitution can be (inductively) applied to an expression resulting
 in a new expression. Denote such an application by $e\sigma$.
 
 Finally, the symbolic semantics of the language are a transition system of triples $(s, \sigma, \phi)$
-where $\phi$ is a boolean expression describing the path condition.
-For example, symbolic assignment and branching are realized by
-\[(x := e ; s, \sigma, \phi) \rightarrow_{S} (s, \sigma[x := e\sigma], \phi) \]
-\[(if \;e\; \{s_{1}\} \{s_{2}\} ; s, \sigma, \phi) \rightarrow_{S} (s_{1} ; s, \sigma, \phi \land e\sigma) \]
-\[(if \;e\; \{s_{1}\} \{s_{2}\} ; s, \sigma, \phi) \rightarrow_{S} (s_{2} ; s, \sigma, \phi \land \neg e\sigma) \]
+where $\phi$ is a boolean expression describing the path condition. As an example, some transition rules
+are shown in \autoref{fig:trans-s}.
+
+\begin{figure}
+  \centering
+  \begin{minipage}[c]{0.4\linewidth}
+  \[(x := e ; s, \sigma, \phi) \rightarrow_{S} (s, \sigma[x := e\sigma], \phi) \]
+    \[(if \;e\; \{s_{1}\} \{s_{2}\} ; s, \sigma, \phi) \rightarrow_{S} (s_{1} ; s, \sigma, \phi \land e\sigma) \]
+    \[(if \;e\; \{s_{1}\} \{s_{2}\} ; s, \sigma, \phi) \rightarrow_{S} (s_{2} ; s, \sigma, \phi \land \neg e\sigma) \]
+    \caption{Symbolic transition steps}
+    \label{fig:trans-s}
+  \end{minipage}
+  \hfill
+  \begin{minipage}[c]{0.4\linewidth}
+    \[(x := e ; s, V) \rightarrow_{C} (s, V[x := V(e)]) \]
+    \[(if \;e\; \{s_{1}\} \{s_{2}\} ; s, V) \rightarrow_{C} (s_{1} ; s, V),\; \mbox{if V(e) = true} \]
+    \[(if \;e\; \{s_{1}\} \{s_{2}\} ; s, V) \rightarrow_{C} (s_{2} ; s, V),\; \mbox{if V(e) = false} \]
+    \caption{Concrete transition steps}
+    \label{fig:trans-c}
+  \end{minipage}
+\end{figure}
 
 For the concrete semantics we require a set of \emph{values} $Val$. We then consider functions $V : Var \rightarrow Val$
 and assume such a valuation is well-typed and can be used to evaluate an expression. Denote such a valuation by $V(e)$.
-In Coq a valuation is simply a function from variables to natural numbers and boolean/arithmetic expressions are evaluated to
-booleans and naturals respectively.
 
-Similar to symbolic semantics, concrete semantics are given by a transition system on pairs $(s, V)$. For example:
-\[(x := e ; s, V) \rightarrow_{C} (s, V[x := V(e)]) \]\note{define valuation update?}
-\[(if \;e\; \{s_{1}\} \{s_{2}\} ; s, V) \rightarrow_{C} (s_{1} ; s, V),\; \mbox{if V(e) = true} \]
-\[(if \;e\; \{s_{1}\} \{s_{2}\} ; s, V) \rightarrow_{C} (s_{2} ; s, V),\; \mbox{if V(e) = false} \]
-\note{these examples take a lot of space, but are maybe more useful than in-text definitions}
-
-For both transition systems we can take the reflexive and transitive closures $\rightarrow_{S/C}^{*}$,
-in Coq implemented stepwise to the right.
+Similar to symbolic semantics, concrete semantics are given by a transition system on pairs $(s, V)$,
+Example rules are shown in \autoref{fig:trans-c}.
 
 To relate symbolic and concrete states, we observe that a valuation can be ``composed'' with a substitution
 to obtain a new valuation. Denote such a composition by $V \circ \sigma$ and note that $(V \circ \sigma)(e) = V(e\sigma)$
-for all expressions $e$ \note{(proof by induction on expressions)}.
+for all expressions $e$.
 
-This allows us to define and prove notions of soundness and completeness.
-\begin{theorem}[Soundness]
+This allows us to define and prove notions of soundness and completeness, where
+$\rightarrow_{S/C}^{*}$ denotes the reflexive and transitive closure of the transition relations.
+\begin{theorem}[Soundness~{\cite[Thm. 2.3]{boer2021}}]
   If $(s, id, true) \rightarrow_{S}^{*} (s', \sigma, \phi)$ and $V(\phi)$ = true,
   then $(s, V) \rightarrow_{C}^{*} (s', V \circ \sigma)$
 \end{theorem}
 
-\begin{theorem}[Completeness]
+Intuitively, every symbolic execution whose path condition is true in the initial valuation $V$
+corresponds to a concrete execution with the same initial valuation and the final valuation is
+the result of composing with the symbolic substitution.
+
+\begin{theorem}[Completeness~{\cite[Thm. 2.4]{boer2021}}]
   If $(s, V) \rightarrow_{C}^{*} (s', V')$ then there exist $\sigma, \phi$ such that
   $(s, id, true) \rightarrow_{S}^{*} (s', \sigma, \phi)$, $V' = V \circ \sigma$ and $V(\phi)$ = true.
 \end{theorem}
 
-Both theorems are proven in Coq by induction on the transition relations and a case analysis of the final step.
+Intuitively, for every concrete execution there exists a symbolic execution whose path condition
+is satisfied by the initial valuation and whose final substitution recovers the final concrete valuation.
+
+\subsection{Coq Implementation}
+We implement this basic setup in Coq. Expressions are divided into boolean and arithmetic expressions,
+and both expressions and statements are inductive types. Boolean expressions may contain arithmetic as the
+arguments to a less than or equal-operator.
+Valuations and substitutions are functions from strings to natural numbers and expressions respectively and
+expressions are evaluated by standard functions.
+
+We implement the transition relations as inductive predicates on pairs of configurations and take their
+reflexive and transitive closure by steps to the right.
+
+Then soundness and completeness are proved by induction on this closure and a case analysis of the final step.
 
 Section 3 of de Boer et al. extends the language with (potentially recursive) procedure calls.
 This is done by distinguishing local and global state and operating with a stack of \emph{closures} consisting
 of a program fragment and the local state.
 
-In the Coq mechanization the types of local and global variables are distinct by construction, and otherwise
-the approach is analoguous to the basic language described above.
+In the Coq mechanization the types of local and global variables are distinct by construction and program
+fragments in the transition relations are replaced by a stack.
+Otherwise the approach is analoguous to the basic language described above.
 
-\subsection*{Trace semantics}
-\begin{itemize}
-  \item $(s_{0} ; s, \tau) \rightarrow_{S} (s, \tau')$ + ($V \circ \tau\downarrow$)
-  \item $(s, \tau) \rightarrow_{S} (s', \tau')$  with skip
-  \item Head-reductions in context (cite Xavier Leroy and Felleisen)
-  \item pros and cons?
-        \begin{itemize}
-          \item fewer rules
-          \item skip-special case
-        \end{itemize}
-\end{itemize}
-
-We extend the work of de Boer et al. to trace semantics in a language with a parallel operator.
-Let symbolic traces be inductively defined by
-\[\tau := [\;] \mid \tau :: (x := e) \mid \tau :: b \mbox{, $b$ a boolean expression} \]
-and concrete traces by
-\[\tau := [\;] \mid \tau :: (x := v) \mbox{, $v \in Val$} \]
+\section{Trace semantics}
+In this section we extend the work of de Boer et al. to trace semantics in a language with a parallel operator.
+Let symbolic and concrete traces be inductively defined by
+\begin{align*}
+  \tau_{S} ::= [\;] \mid \tau_{S} :: (x := e) \mid \tau_{S} :: b
+  && \mbox{ and } &&
+  \tau_{C} ::= [\;] \mid \tau_{C} :: (x := v)
+\end{align*}
+where $b$ is a boolean expression and $v$ a concrete value.
 
 The final (symbolic) state of a (symbolic) trace can be recovered from an initial state by folding over
 the trace and updating the state. Denote the result by $\tau\Downarrow$. Note that this is \emph{substitution}
@@ -183,34 +191,26 @@ Both of these theorems are proven for the language extended with procedure calls
 by induction on the transition relation~\footnote{In fact they both hold for appropriate initial traces (not just [])
 but this formulation provides more clutter than insight}.
 
-\subsection*{Reduction Semantics}
+\section{Reduction-in-Context Semantics}
 As an alternative to de Boer et al.'s transition system semantics we implement reduction-in-context semantics in the
 style of Felleisen~\cite{FELLEISEN1992235}.
 
-With this approach we consider configurations of the form $(C[s], \tau)$ which represent the program fragment
+With this approach we consider configurations of the form $(C[s], \tau)$ where $C[s]$ represent the program fragment
 $s$ in the context $C$. This allows us to define a generic machinery for reductions in context and a smaller
 ``head reduction'' relation on $(s, \tau)$ specific to the symbolic or concrete semantics at hand.
 \note{examples?}
 
-The Coq implementation is inspired by the approach of Xavier Leroy in his course on mechanized semantics~
-\footnote{\url{https://github.com/xavierleroy/cdf-mech-sem/blob/f8dc6f7e2cb42f0861406b2fa113e2a7e825c5f3/FUN.v}}.
-Trace soundness and completeness can be stated as before, and proven by induction on the reduction relation.
+The Coq implementation is inspired by the approach of Xavier Leroy's course on mechanized semantics~\cite{Leroy2020}.
+Trace soundness and completeness can be stated as before, and are proven by induction on the reduction relation.
 
-\subsection*{Trace reduction? / future work}
-\begin{itemize}
-  \item by equivalence relation
-  \item sound: can continue from equivalent trace (easy)
-  \item complete: don't reduce away necessary traces (hard)
-\end{itemize}
-
-Using the mechanized framework described above, we aim to investigate reduction techniques for symbolic
-execution and define useful notions of sound- and completeness for such reductions.
-
-\subsection*{Conclusion}
-We have provided an of de Boer and Bonsangue's formalization of symbolic execution in Coq.
-Additionally we extend the formalization to include parallel composition and trace semantics,
+\section{Discussion and Future Work}
+We have provided an overview of de Boer and Bonsangue's formalization of SE in Coq.
+Additionally we extended the formalization to include parallel composition and trace semantics,
 and consider an alternative implementation of the semantics which results in more generic machinery
 that can be re-used in the symbolic and concrete case.
+
+In the future we aim to use this mechanized framework to investigate reduction techniques for symbolic
+execution in concurrent settings and define useful notions of sound- and completeness for such reductions.
 
 \bibliographystyle{eptcs}
 % the .bib-file from phd proposal
