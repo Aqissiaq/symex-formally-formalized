@@ -9,4 +9,5 @@ Recursion.v
 TraceSemantics.v
 Parallel.v
 ParallelTraces.v
+ContextReduction.v
 #Oop.v
