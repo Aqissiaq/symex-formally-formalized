@@ -24,6 +24,10 @@ The approach to syntax and transition relation semantics is based on [Programmin
 ### Extensions
 - [TraceSemantics](./TraceSemantics.v) introduces trace semantics for the language with procedures
   - Notation and lemmas about traces are in [Traces](./Traces.v)
+  - Some examples of programs and their traces are found in [examples](./Trace_examples.v)
 - [ParallelTraces](./ParallelTraces.v) adds a parallel composition operator to the base language with trace semantics.
 Additionally contains some preliminary results about reduction of trace sets.
 - [ContextReduction](./ContextReduction) contains an alternative approach to syntax based on reductions in a context inspired by [Mechanized Semantics](https://github.com/xavierleroy/cdf-mech-sem)
+
+### Other
+- [PLACES](./PLACES) contains a talk proposal to [PLACES 2023](https://places-workshop.github.io/2023/)
