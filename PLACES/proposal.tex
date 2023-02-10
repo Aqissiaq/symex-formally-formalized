@@ -20,7 +20,7 @@
 
 \title{Concurrent Symbolic Execution with Trace Semantics in Coq}
 \author{Åsmund Aqissiaq Arild Kløvstad
-  \footnote{joint work with Einar Broch Johnsen and Eduard Kamburjan}
+  \footnote{joint work with Einar Broch Johnsen, Eduard Kamburjan and Silvia Lizeth Tapia Tarifa}
 \institute{University of Oslo, Oslo, Norway}
 \email{aaklovst@ifi.uio.no}
 }
@@ -33,7 +33,7 @@
   pdftitle    = {\titlerunning},
   pdfauthor   = {\authorrunning},
   pdfsubject  = {PLACES 2023 talk proposal},               % Consider adding a more appropriate subject or description
-  pdfkeywords = {symbolic execution, concurrency, coq, trace semantics} % Uncomment and enter keywords specific to your paper
+  pdfkeywords = {symbolic execution, concurrency, coq, trace semantics, mechanization} % Uncomment and enter keywords specific to your paper
 }
 
 \begin{document}
@@ -41,19 +41,19 @@
 
 \begin{abstract}
   Symbolic Execution (SE) is a technique for program analysis using symbolic expressions to abstract over program state,
-  thereby covering many program states simultaneously. SE has been used since the mid 70's~\cite{king1976symbolic,boyer1975select}
-  in both testing and analysis, but its formal aspects have only recently begun to be explored~\cite{boer2021}
-  and unified~\cite{Steinhoefel2022}.
-  % \note{Traces are semantics presentation that can allow for composition~\cite{din2022lagc} and reordering of non-interfering events~\cite{Mazurkiewicz1977}.}
-  We present a Coq formalization of sections 1-3 of de Boer et al.'s work, extend the language with parallelism, and
-  extend the model to symbolic and concrete trace semantics. Finally we consider a context-based presentation of the
-  trace semantics in the style of Felleisen~\cite{FELLEISEN1992235} and lay out a direction for future work.
+  thereby covering many program states simultaneously. SE has been used since the mid 70's % ~\cite{king1976symbolic,boyer1975select}
+  in both testing and analysis, but its formal aspects have only recently begun to be explored %~\cite{boer2021}
+  and unified. % ~\cite{Steinhoefel2022}.
+  Trace semantics present a more powerful alternative to state-based approaches.
+  We present a Coq formalization of state-based SE and trace-based SE with parallelism.
+  Additionally we consider an alternative presentation based on reduction in a context and lay out a direction for future work.
 \end{abstract}
 
 \paragraph{Theory}
-The most basic setting for SE, presented in \cite{boer2021},
-is a small imperative language with assignment, sequential composition, branching (\texttt{if})
-and iteration (\texttt{while}). \emph{Statements} in this language are denoted by $s, s', s_{0}\ldots$
+SE has applications in numerous settings~\cite{king1976symbolic, boyer1975select, Steinhoefel2022}.
+As a basic setting we consider a small imperative language with assignment,
+sequential composition, branching (\texttt{if}) and iteration (\texttt{while})~\cite{boer2021}.
+\emph{Statements} in this language are denoted by $s, s', s_{0}\ldots$
 Additionally we consider a set of \emph{variables} $Var$ and \emph{expressions} $Expr$ consisting of variables and
 standard operations. Variables are denoted by $x,y,z\ldots$ and expressions by $e, e', e_{0}\ldots$
 Both expressions and statements are assumed to be well-typed.
@@ -87,7 +87,7 @@ the result of composing with the symbolic substitution.
 \end{theorem}
 Intuitively, for every concrete execution there exists a symbolic execution whose path condition
 is satisfied by the initial valuation and whose final substitution recovers the final concrete valuation.
-Boer et al. then extend the language with (recursive) procedure calls.
+The language can be extended with (recursive) procedure calls.
 This is done by distinguishing local and global state and operating with a stack of \emph{closures} consisting
 of a program fragment and the local state.
 \paragraph{Coq Implementation}
@@ -102,7 +102,8 @@ Soundness and completeness are proven by induction on this relation and a case a
 The extension to procedure calls distinguishes local and global variables by construction, but is
 otherwise straightforward.
 \paragraph{Trace semantics}
-Our contribution extends the work of de Boer et al. to trace semantics in a language with a parallel operator $s |\!| s'$.
+Our contribution extends the work of de Boer and Bonsangue to trace semantics in a language with a parallel operator $s |\!| s'$.
+Traces result in expressive~\cite{Mazurkiewicz1977} and compositional~\cite{din2022lagc} semantics.
 Let symbolic and concrete traces be inductively defined by
 \begin{align*}
   \tau_{S} ::= [\;] \mid \tau_{S} :: (x := e) \mid \tau_{S} :: b
@@ -118,7 +119,7 @@ Denote this path condition by $pc(\tau)$.
 The semantics are given by a transition system on pairs $(s, \tau)$ -- with $\tau$ symbolic or concrete --
 parametrized by an initial state. Let $\rightarrow_{\sigma}$ denote a symbolic transition from initial state $\sigma$,
 and $\rightarrow_{V}$ a concrete transition from initial state $V$.
-We also recover soundness and completeness in the style of de Boer et al.
+We also recover soundness and completeness.
 \begin{theorem}[Trace Soundness]
   If $(s, [\;]) \rightarrow_{id}^{*} (s', \tau_{S})$ and $V_{0}(pc(\tau_{S}))$ = true,
   then there exists $\tau_{C}$ s.t $(s, [\;]) \rightarrow_{V_0}^{*} (s', \tau_{C})$ and
@@ -134,13 +135,12 @@ Both of these theorems are proven for the language extended with procedure calls
 by induction on the transition relation\footnote{In fact they both hold for appropriate initial traces (not just [])
 but this formulation provides more clutter than insight}.
 \paragraph{Discussion}
-As an alternative to de Boer et al.'s transition system semantics we implement reduction-in-context semantics in the
-style of Felleisen~\cite{FELLEISEN1992235}.
+As an alternative to transition system semantics we implement reduction-in-context semantics~\cite{FELLEISEN1992235}.
 With this approach we consider configurations of the form $(C[s], \tau)$ where $C[s]$ represent the program fragment
 $s$ in the context $C$. This allows us to define a generic machinery for reductions in context and a smaller
 ``head reduction'' relation on $(s, \tau)$ specific to the symbolic or concrete semantics at hand.
-The Coq implementation is inspired by the approach of Xavier Leroy's course on mechanized semantics~\cite{Leroy2020}.
-Trace soundness and completeness can be stated as before, and are proven by induction on the reduction relation.
+The Coq implementation takes after work by Leroy~\cite{Leroy2020}.
+Trace soundness and completeness can be stated analogously, and are proven by induction on the reduction relation.
 
 \paragraph{Conclusion and Future Work}
 We have provided an overview of de Boer and Bonsangue's formalization of SE in Coq.
@@ -156,7 +156,6 @@ execution in concurrent settings and define useful notions of sound- and complet
 
 \appendix
 \section{Transition Rules}
-
 \subsection{Transition relation for symbolic execution}
 \begin{align*}
 (x := e ; s, \sigma, \phi) & \rightarrow_{S} (s, \sigma[x := e\sigma], \phi) \\
@@ -208,7 +207,4 @@ Concrete head reduction
   (s |\!| skip, \tau) & \rightarrow (s, \tau)
 \end{align*}
 \end{minipage}
-
-
-
 \end{document}
