@@ -32,8 +32,8 @@
   bookmarksnumbered,
   pdftitle    = {\titlerunning},
   pdfauthor   = {\authorrunning},
-  pdfsubject  = {PLACES 2023 talk proposal},               % Consider adding a more appropriate subject or description
-  pdfkeywords = {symbolic execution, concurrency, coq, trace semantics, mechanization} % Uncomment and enter keywords specific to your paper
+  pdfsubject  = {PLACES 2023 talk proposal},
+  pdfkeywords = {symbolic execution, concurrency, coq, trace semantics, mechanization}
 }
 
 \begin{document}
@@ -41,33 +41,34 @@
 
 \begin{abstract}
   Symbolic Execution (SE) is a technique for program analysis using symbolic expressions to abstract over program state,
-  thereby covering many program states simultaneously. SE has been used since the mid 70's % ~\cite{king1976symbolic,boyer1975select}
-  in both testing and analysis, but its formal aspects have only recently begun to be explored %~\cite{boer2021}
-  and unified. % ~\cite{Steinhoefel2022}.
-  Trace semantics present a more powerful alternative to state-based approaches.
-  We present a Coq formalization of state-based SE and trace-based SE with parallelism.
-  Additionally we consider an alternative presentation based on reduction in a context and lay out a direction for future work.
+  thereby covering many program states simultaneously. SE has been used since the mid 70's in both testing and analysis~\cite{king1976symbolic, boyer1975select},
+  but its formal aspects have only recently begun to be explored~\cite{boer2021} and unified~\cite{Steinhoefel2022}.
+  We present a Coq formalization of state- and trace-based SE with parallelism, as trace semantics present
+  a more expressive alternative to state-based approaches.
+  Additionally we consider an alternate approach based on reduction in a context.
 \end{abstract}
 
-\paragraph{Theory}
-SE has applications in numerous settings~\cite{king1976symbolic, boyer1975select, Steinhoefel2022}.
+\paragraph{Theory~\cite{boer2021}}
+% move this sentence back into abstract?
+% SE has applications in numerous settings~\cite{king1976symbolic, boyer1975select, Steinhoefel2022}.
 As a basic setting we consider a small imperative language with assignment,
-sequential composition, branching (\texttt{if}) and iteration (\texttt{while})~\cite{boer2021}.
+sequential composition, branching (\texttt{if}) and iteration (\texttt{while}).
 \emph{Statements} in this language are denoted by $s, s', s_{0}\ldots$
 Additionally we consider a set of \emph{variables} $Var$ and \emph{expressions} $Expr$ consisting of variables and
 standard operations. Variables are denoted by $x,y,z\ldots$ and expressions by $e, e', e_{0}\ldots$
 Both expressions and statements are assumed to be well-typed.
+In this setting we define symbolic and concrete semantics to define notions of soundness and completeness.
 
 With these definitions we can start to define symbolic semantics. The (symbolic) state is realized by a
 \emph{substitution} -- a function $Var \rightarrow Expr$. A substitution is denoted by $\sigma, \sigma'\ldots$
-and an update by $\sigma[x := e]$. Notably, since a lone variable is also an expressions, we can construct the
-identity substitution $id : x \mapsto x$, and a substitution can be (inductively) applied to an expression resulting
+and an update by $\sigma[x := e]$. Note that we can construct the identity substitution $id : x \mapsto x$,
+and that a substitution can be (inductively) applied to an expression resulting
 in a new expression. Denote such an application by $e\sigma$.
 Finally, the symbolic semantics of the language are a transition system of triples $(s, \sigma, \phi)$
 where $\phi$ is a boolean expression describing the path condition.
 For the concrete semantics we require a set of \emph{values} $Val$. We then consider functions $V : Var \rightarrow Val$
 and assume such a valuation is well-typed and can be used to evaluate an expression. Denote such a valuation by $V(e)$.
-Similar to symbolic semantics, concrete semantics are given by a transition system on pairs $(s, V)$,
+The concrete semantics are given by a transition system on pairs $(s, V)$,
 
 To relate symbolic and concrete states, we observe that a valuation can be ``composed'' with a substitution
 to obtain a new valuation. Denote such a composition by $V \circ \sigma$ and note that $(V \circ \sigma)(e) = V(e\sigma)$
