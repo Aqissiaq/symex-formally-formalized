@@ -53,28 +53,30 @@
 % SE has applications in numerous settings~\cite{king1976symbolic, boyer1975select, Steinhoefel2022}.
 As a basic setting we consider a small imperative language with assignment,
 sequential composition, branching (\texttt{if}) and iteration (\texttt{while}).
-\emph{Statements} in this language are denoted by $s, s', s_{0}\ldots$
+\emph{Statements} in this language are denoted by $s, s', s_{0},\ldots$
 Additionally we consider a set of \emph{variables} $Var$ and \emph{expressions} $Expr$ consisting of variables and
-standard operations. Variables are denoted by $x,y,z\ldots$ and expressions by $e, e', e_{0}\ldots$
+standard operations. Variables are denoted by $x,y,z, \ldots$ and expressions by $e, e', e_{0},\ldots$
 Both expressions and statements are assumed to be well-typed.
 In this setting we define symbolic and concrete semantics to define notions of soundness and completeness.
 
-With these definitions we can start to define symbolic semantics. The (symbolic) state is realized by a
-\emph{substitution} -- a function $Var \rightarrow Expr$. A substitution is denoted by $\sigma, \sigma'\ldots$
-and an update by $\sigma[x := e]$. Note that we can construct the identity substitution $id : x \mapsto x$,
-and that a substitution can be (inductively) applied to an expression resulting
-in a new expression. Denote such an application by $e\sigma$.
-Finally, the symbolic semantics of the language are a transition system of triples $(s, \sigma, \phi)$
+The (symbolic) state is realized by a \emph{substitution} -- a function $Var \rightarrow Expr$.
+A substitution is denoted by $\sigma, \sigma', \ldots$ and an update by $\sigma[x := e]$.
+Note that we can construct the identity substitution $id : x \mapsto x$,
+and that a substitution can be (inductively) applied to an expression resulting in a new expression.
+Denote such an application by $e\sigma$.
+Finally, the symbolic semantics of the language are a transition system on triples $(s, \sigma, \phi)$
 where $\phi$ is a boolean expression describing the path condition.
+
 For the concrete semantics we require a set of \emph{values} $Val$. We then consider functions $V : Var \rightarrow Val$
-and assume such a valuation is well-typed and can be used to evaluate an expression. Denote such a valuation by $V(e)$.
-The concrete semantics are given by a transition system on pairs $(s, V)$,
+and assume such a \emph{valuation} is well-typed and can be used to evaluate an expression. Denote such a valuation by $V(e)$.
+The concrete semantics are given by a transition system on pairs $(s, V)$.
+See appendices for the rules of both transition systems.
 
 To relate symbolic and concrete states, we observe that a valuation can be ``composed'' with a substitution
 to obtain a new valuation. Denote such a composition by $V \circ \sigma$ and note that $(V \circ \sigma)(e) = V(e\sigma)$
 for all expressions $e$.
-This allows us to define and prove notions of soundness and completeness, where
-$\rightarrow_{S/C}^{*}$ denotes the reflexive and transitive closure of the transition relations.
+This allows us to define and prove notions of soundness and completeness,
+where $\rightarrow_{S/C}^{*}$ denotes the reflexive and transitive closure of the transition relations.
 \begin{theorem}[Soundness~{\cite{boer2021}}]
   If $(s, id, true) \rightarrow_{S}^{*} (s', \sigma, \phi)$ and $V(\phi)$ = true,
   then $(s, V) \rightarrow_{C}^{*} (s', V \circ \sigma)$
@@ -95,16 +97,16 @@ of a program fragment and the local state.
 We implement this basic setup in Coq. Expressions are divided into boolean and arithmetic expressions,
 and both expressions and statements are inductive types. Boolean expressions may contain arithmetic as the
 arguments to a less than or equal-operator.
-Valuations and substitutions are functions from strings to natural numbers and expressions respectively and
-expressions are evaluated by standard functions.
+Valuations and substitutions are total functions from strings to natural numbers and expressions respectively,
+necessitating a default value.
 We implement the transition relations as inductive predicates on pairs of configurations and take their
 reflexive and transitive closure by steps to the right.
 Soundness and completeness are proven by induction on this relation and a case analysis of the final step.
 The extension to procedure calls distinguishes local and global variables by construction, but is
 otherwise straightforward.
 \paragraph{Trace semantics}
-Our contribution extends the work of de Boer and Bonsangue to trace semantics in a language with a parallel operator $s |\!| s'$.
-Traces result in expressive~\cite{Mazurkiewicz1977} and compositional~\cite{din2022lagc} semantics.
+Our contribution extends the work of de Boer and Bonsangue to trace semantics in a language with a parallel operator $s |\!| s'$,
+as traces result in expressive~\cite{tracemodality2020, Mazurkiewicz1977} and compositional~\cite{din2022lagc} semantics.
 Let symbolic and concrete traces be inductively defined by
 \begin{align*}
   \tau_{S} ::= [\;] \mid \tau_{S} :: (x := e) \mid \tau_{S} :: b
@@ -113,7 +115,7 @@ Let symbolic and concrete traces be inductively defined by
 \end{align*}
 where $b$ is a boolean expression and $v$ a concrete value.
 The final state of a trace can be recovered from an initial state by folding over
-the trace and updating the state. Denote the result by $\tau\Downarrow_{V_{0}}$. Note that this is \emph{substitution}
+the trace and updating the state. Denote the result by $\tau\Downarrow_{\sigma / V_{0}}$. Note that this is \emph{substitution}
 in the case of symbolic traces, but a \emph{valuation} in the case of concrete traces.
 The path condition of symbolic traces can also be recovered as the conjunction of all its boolean expressions.
 Denote this path condition by $pc(\tau)$.
@@ -141,7 +143,8 @@ With this approach we consider configurations of the form $(C[s], \tau)$ where $
 $s$ in the context $C$. This allows us to define a generic machinery for reductions in context and a smaller
 ``head reduction'' relation on $(s, \tau)$ specific to the symbolic or concrete semantics at hand.
 The Coq implementation takes after work by Leroy~\cite{Leroy2020}.
-Trace soundness and completeness can be stated analogously, and are proven by induction on the reduction relation.
+Trace soundness and completeness can be stated analogously, and proven by induction on the reduction relation
+and case analysis of the head reduction.
 
 \paragraph{Conclusion and Future Work}
 We have provided an overview of de Boer and Bonsangue's formalization of SE in Coq.
@@ -156,6 +159,7 @@ execution in concurrent settings and define useful notions of sound- and complet
 \bibliography{sources}
 
 \appendix
+\section*{Appendices}
 \section{Transition Rules}
 \subsection{Transition relation for symbolic execution}
 \begin{align*}
@@ -168,11 +172,11 @@ execution in concurrent settings and define useful notions of sound- and complet
 
 \subsection{Transition relation for concrete execution}
 \begin{align*}
-(x := e ; s, V) & \rightarrow_{C} (s, V[x := V(e)]) \\
-(if \;e\; \{s_{1}\} \{s_{2}\} ; s, V) & \rightarrow_{C} (s_{1} ; s, V) \mbox{if $V (e)$ = true} \\
-(if \;e\; \{s_{1}\} \{s_{2}\} ; s, V) & \rightarrow_{C} (s_{2} ; s, V) \mbox{if $V (e)$ = false} \\
-(while \;e\; \{s\} ; s', V) & \rightarrow_{C} (s ; while \;e\; \{s\} ; s', V) \mbox{if $V (e)$ = true} \\
-(while \;e\; \{s\} ; s', V) & \rightarrow_{C} (s', V) \mbox{if $V (e)$ = false}
+(x := e ; s, V) & \rightarrow_{C} (s, V[x := V(e)])\\
+(if \;e\; \{s_{1}\} \{s_{2}\} ; s, V) & \rightarrow_{C} (s_{1} ; s, V), \quad \mbox{if $V (e)$ = true} \\
+(if \;e\; \{s_{1}\} \{s_{2}\} ; s, V) & \rightarrow_{C} (s_{2} ; s, V), \quad \mbox{if $V (e)$ = false} \\
+(while \;e\; \{s\} ; s', V) & \rightarrow_{C} (s ; while \;e\; \{s\} ; s', V), \quad \mbox{if $V (e)$ = true} \\
+(while \;e\; \{s\} ; s', V) & \rightarrow_{C} (s', V), \quad \mbox{if $V (e)$ = false}
 \end{align*}
 \section{Reduction rules}
 \subsection{Generic Context Rules}
@@ -182,10 +186,10 @@ execution in concurrent settings and define useful notions of sound- and complet
   && \frac{is\_context (C)}{is\_context (s' |\!| C[s])} \mbox{right-par}
 \end{align*}
 
-\[\frac{(s, t) \rightarrow_{head} (s', t') \qquad is\_context (C)}{(C[s], t) \rightarrow (C[s'], t')}\]
+\[\frac{(s, \tau) \rightarrow_{head} (s', \tau') \qquad is\_context (C)}{(C[s], \tau) \rightarrow (C[s'], \tau')}\]
 Where $\rightarrow_{head}$ is either the symbolic or concrete head reduction relation given below:
 \subsection{Head Reduction Rules}
-\noindent\begin{minipage}{.5\linewidth}
+\noindent\begin{minipage}[t]{.5\linewidth}
 \centering
 Symbolic head reduction
 \begin{align*}
@@ -196,13 +200,13 @@ Symbolic head reduction
   (skip |\!| s, \tau) & \rightarrow (s, \tau) \\
   (s |\!| skip, \tau) & \rightarrow (s, \tau)
 \end{align*}
-\end{minipage}%
-\begin{minipage}{.5\linewidth}
+\end{minipage}\hfill
+\begin{minipage}[t]{.5\linewidth}
 \centering
-Concrete head reduction
+Concrete head reduction with initial valuation $V_{0}$
 \begin{align*}
-  (x := e, \tau) & \rightarrow (skip, \tau :: (x := V(e))) \\
-  (if \;b\; \{s_{1}\} \{s_{2}\}, \tau) & \rightarrow (if \; V (b) \; then \; s_{1} \; else \; s_{2}, \tau) \\
+  (x := e, \tau) & \rightarrow (skip, \tau :: (x := \tau \Downarrow_{V_{0}} (e))) \\
+  (if \;b\; \{s_{1}\} \{s_{2}\}, \tau) & \rightarrow (if \; \tau \Downarrow_{V_{0}} (b) \; then \; s_{1} \; else \; s_{2}, \tau) \\
   (skip ; s, \tau) & \rightarrow (s, \tau) \\
   (skip |\!| s, \tau) & \rightarrow (s, \tau) \\
   (s |\!| skip, \tau) & \rightarrow (s, \tau)
