@@ -25,6 +25,7 @@ Import BasicMaps.
 From SymEx Require Import Parallel.
 
 From SymEx Require Import Traces.
+Import TraceSemantics.
 
 Open Scope com_scope.
 Open Scope string_scope.
@@ -33,41 +34,35 @@ Open Scope trace_scope.
 Ltac splits := repeat (try split).
 
 (** Symbolic semantics *)
-Inductive STrace_step : Type :=
-| STAsgn (x:Var) (e:Aexpr)
-| STCond (b:Bexpr).
-
-Definition STrace := trace STrace_step.
-
-Fixpoint acc_subst (s0:sub) (t:STrace) : sub :=
+Fixpoint acc_subst (s0:sub) (t:trace__S) : sub :=
   match t with
   | [] => s0
-  | t :: STAsgn x e => let s := acc_subst s0 t in
+  | t :: Asgn__S x e => let s := acc_subst s0 t in
                      (x !-> Aapply s e ; s)
   | t :: _ => acc_subst s0 t
   end.
 
 Definition acc_subst_id := acc_subst id_sub.
 
-Definition Aapply_t (t:STrace) (e:Aexpr) : Aexpr :=
+Definition Aapply_t (t:trace__S) (e:Aexpr) : Aexpr :=
   Aapply (acc_subst_id t) e.
 
-Definition Bapply_t (t:STrace) (e:Bexpr) : Bexpr :=
+Definition Bapply_t (t:trace__S) (e:Bexpr) : Bexpr :=
   Bapply (acc_subst_id t) e.
 
-Fixpoint pc (t:STrace) : Bexpr :=
+Fixpoint pc (t:trace__S) : Bexpr :=
   match t with
   | [] => BTrue
-  | t :: STCond b => BAnd (Bapply_t t b) (pc t)
+  | t :: Cond b => BAnd (Bapply_t t b) (pc t)
   | t :: _ => pc t
   end.
 
-Definition SConfig : Type := Stmt * STrace.
+Definition SConfig : Type := Stmt * trace__S.
 
 Reserved Notation " c '->s' c' " (at level 40).
 Inductive Sstep : relation SConfig  :=
 | SAsgn_step : forall x e t,
-    (<{x := e}>, t) ->s (<{skip}>, t :: STAsgn x e)
+    (<{x := e}>, t) ->s (<{skip}>, t :: Asgn__S x e)
 | SSeq_step : forall s1 s2 s t1 t2,
     (s1, t1) ->s (s2, t2) ->
     (<{s1 ; s}>, t1) ->s (<{s2 ; s}>, t2)
@@ -84,9 +79,9 @@ Inductive Sstep : relation SConfig  :=
 | SParRight_done : forall s t,
     (<{ s || skip }>, t) ->s (s, t)
 | SIfTrue_step : forall b s1 s2 t,
-    (<{if b {s1}{s2}}>, t) ->s (s1, t :: STCond b)
+    (<{if b {s1}{s2}}>, t) ->s (s1, t :: Cond b)
 | SIfFalse_step : forall b s1 s2 t,
-    (<{if b {s1}{s2}}>, t) ->s (s2, t :: STCond (BNot b))
+    (<{if b {s1}{s2}}>, t) ->s (s2, t :: Cond (BNot b))
 where " c '->s' c' " := (Sstep c c').
 
 Definition multi_Sstep := clos_refl_trans_n1 _ Sstep.
@@ -113,7 +108,7 @@ Qed.
 (* not deterministic, maybe prove later*)
 
 (* characterizing stuff in terms of sets of traces *)
-Definition Concatenate (A B: Ensemble STrace) : Ensemble STrace :=
+Definition Concatenate (A B: Ensemble trace__S) : Ensemble trace__S :=
   fun t => exists t1 t2, t = t1 ++ t2 /\ A t1 /\ B t2.
 
 Lemma Concatenate_empty_left : forall S, Concatenate (Singleton _ []) S = S.
@@ -126,7 +121,7 @@ Proof.
     + assumption.
 Qed.
 
-Inductive is_interleaving : STrace -> STrace -> STrace -> Prop :=
+Inductive is_interleaving : trace__S -> trace__S -> trace__S -> Prop :=
 | both_empty : is_interleaving [] [] []
 | left_empty : forall t, is_interleaving [] t t
 | right_empty : forall t, is_interleaving t [] t
@@ -138,10 +133,10 @@ Inductive is_interleaving : STrace -> STrace -> STrace -> Prop :=
     is_interleaving t1 (t2::x) (t::x)
 .
 
-Definition Interleave (A B: Ensemble STrace) : Ensemble STrace :=
+Definition Interleave (A B: Ensemble trace__S) : Ensemble trace__S :=
   fun t => exists t1 t2, is_interleaving t1 t2 t /\ A t1 /\ B t2.
 
-Definition traces__S (s:Stmt) : Ensemble STrace := fun t => (s, []) ->* (<{skip}>, t).
+Definition traces__S (s:Stmt) : Ensemble trace__S := fun t => (s, []) ->* (<{skip}>, t).
 
 Lemma skip_stuck : forall t, ~ (exists s t', (SSkip, t) ->s (s, t')).
 Proof. intros t H. destruct H as [s [t' comp]]. inversion comp. Qed.
@@ -153,17 +148,17 @@ Proof. split.
          apply clos_rtn1_rt in H. apply clos_rt_rt1n in H.
          inversion H. apply In_singleton.
          destruct y. destruct (skip_stuck []).
-         exists s. exists s0. assumption.
+         exists s. exists t0. assumption.
        - intros t H. inversion H; subst. apply rtn1_refl.
 Qed.
 
-Theorem asgn_traces_spec : forall x e, Same_set _ (traces__S <{ x := e }>) (Singleton _ [STAsgn x e]).
+Theorem asgn_traces_spec : forall x e, Same_set _ (traces__S <{ x := e }>) (Singleton _ [Asgn__S x e]).
 Proof.
   split; intros t H.
   - unfold In, traces__S in H.
     apply clos_rtn1_rt in H. apply clos_rt_rt1n in H.
     inversion H. inversion H0; subst.
-    assert (t_spec: t = [STAsgn x e])
+    assert (t_spec: t = [Asgn__S x e])
       by (dependent induction H1; [reflexivity| inversion H0]).
     rewrite t_spec. apply In_singleton.
   - inversion H. econstructor. apply SAsgn_step. constructor.
@@ -196,7 +191,7 @@ Lemma trace_extends_step : forall s1 s2 t0 t,
     exists t', t = t0 ++ t'.
 Proof.
   intros. dependent induction H.
-  - exists [STAsgn x e]. reflexivity.
+  - exists [Asgn__S x e]. reflexivity.
   - edestruct IHSstep as [t' IH]; try reflexivity.
     exists t'. apply IH.
   - exists []. reflexivity.
@@ -206,8 +201,8 @@ Proof.
     exists t'. apply IH.
   - exists []. reflexivity.
   - exists []. reflexivity.
-  - exists [STCond b]. reflexivity.
-  - exists [STCond (BNot b)]. reflexivity.
+  - exists [Cond b]. reflexivity.
+  - exists [Cond (BNot b)]. reflexivity.
 Qed.
 
 Lemma trace_extends : forall s1 s2 t t0,
@@ -216,8 +211,8 @@ Lemma trace_extends : forall s1 s2 t t0,
 Proof.
   intros. dependent induction H.
   - exists []. reflexivity.
-  - destruct y. destruct (trace_extends_step s s2 s0 t H) as [t' Hstep].
-    destruct (IHclos_refl_trans_n1 s1 s s0 t0) as [t0' IHt0]; try reflexivity.
+  - destruct y. destruct (trace_extends_step s s2 t1 t H) as [t' Hstep].
+    destruct (IHclos_refl_trans_n1 s1 s t1 t0) as [t0' IHt0]; try reflexivity.
     exists (t0' ++ t'). rewrite app_assoc. subst. reflexivity.
 Qed.
 
@@ -391,7 +386,7 @@ Proof.
     + assumption.
 Qed.
 
-Definition is_abstraction (V0:Valuation) (t:CTrace) (t':STrace) : Prop :=
+Definition is_abstraction (V0:Valuation) (t:CTrace) (t':trace__S) : Prop :=
   Beval V0 (pc t') = true /\ Comp V0 (acc_subst_id t') = acc_val V0 t.
 
 Lemma completeness_step : forall s s' t0 t t0' V0,
@@ -452,18 +447,18 @@ Proof.
 Qed.
 
 Definition subst_equiv (s s': sub) := forall V0, Comp V0 s = Comp V0 s'.
-Definition pc_equiv (t t': STrace) := forall V0, Beval V0 (pc t) = true <-> Beval V0 (pc t') = true.
+Definition pc_equiv (t t': trace__S) := forall V0, Beval V0 (pc t) = true <-> Beval V0 (pc t') = true.
 
-Definition STrace_equiv : relation STrace :=
+Definition trace__S_equiv : relation trace__S :=
   fun t t' => subst_equiv (acc_subst_id t) (acc_subst_id t') /\ pc_equiv t t'.
 
 Global Instance Reflexive_substeq : Reflexive subst_equiv.
 Proof. unfold subst_equiv. intros s x. reflexivity. Qed.
 
-Global Instance Reflexive_traceq : Reflexive STrace_equiv.
+Global Instance Reflexive_traceq : Reflexive trace__S_equiv.
 Proof. intro. splits; intro; assumption. Qed.
 
-Notation "t ~ t'" := (STrace_equiv t t') (at level 40) : trace_scope.
+Notation "t ~ t'" := (trace__S_equiv t t') (at level 40) : trace_scope.
 
 (** Correctness modulo trace equivalance*)
 Theorem correctness_reduced : forall s s' t0 t0' t tc V0,
@@ -624,7 +619,7 @@ Proof.
   intros. apply clos_rtn1_rt in H. apply clos_rt_rt1n in H.
   dependent destruction H.
   - split; reflexivity.
-  - destruct (skip_stuck t), y. exists s0. exists s1. apply H.
+  - destruct (skip_stuck t), y. exists s0. exists t0. apply H.
 Qed.
 
 Lemma progress_step__S : forall s s' t t', (s, t) ->s (s', t') -> s <> s'.

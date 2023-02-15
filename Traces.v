@@ -1,3 +1,7 @@
+From Coq Require Import String Bool Datatypes Relations Program.Equality.
+From SymEx Require Import Expr Maps.
+Import BasicExpr BasicMaps.
+
 Inductive trace (A : Type) : Type :=
 | Tnil : trace A
 | Tcons : trace A -> A -> trace A.
@@ -95,3 +99,55 @@ Proof.
   intros. destruct (not_empty_cons _ H) as [x [t' H']].
   rewrite H'. apply peel_off'.
 Qed.
+
+Module TraceSemantics.
+  (** Symbolic *)
+  Definition Var: Type := string.
+
+  Inductive trace_step__S : Type :=
+  | Asgn__S (x:Var) (e:Aexpr)
+  | Cond (b:Bexpr).
+
+  Definition trace__S := trace trace_step__S.
+
+  Fixpoint acc_subst (s0:sub) (t:trace__S) : sub :=
+    match t with
+    | [] => s0
+    | t :: Asgn__S x e => let s := acc_subst s0 t in
+                      (x !-> Aapply s e ; s)
+    | t :: _ => acc_subst s0 t
+    end.
+
+  Definition Aapply_t (t:trace__S) (e:Aexpr) : Aexpr :=
+    Aapply (acc_subst id_sub t) e.
+
+  Definition Bapply_t (t:trace__S) (e:Bexpr) : Bexpr :=
+    Bapply (acc_subst id_sub t) e.
+
+  Fixpoint pc (t:trace__S) : Bexpr :=
+    match t with
+    | [] => BTrue
+    | t :: Cond b => BAnd (Bapply_t t b) (pc t)
+    | t :: _ => pc t
+    end.
+
+  (** Concrete *)
+  Definition Val : Type := nat.
+  Definition trace__C := trace (Var * Val).
+
+  Fixpoint acc_val (V0:Valuation) (t:trace__C) : Valuation :=
+    match t with
+    | [] => V0
+    | t :: (x, v) => let V := acc_val V0 t in
+                   (x !-> v ; V)
+    end.
+
+  Definition Aeval_t (V0:Valuation) (t:trace__C) (e:Aexpr) : nat :=
+    Aeval (acc_val V0 t) e.
+
+  Definition Beval_t (V0:Valuation) (t:trace__C) (e:Bexpr) : bool :=
+    Beval (acc_val V0 t) e.
+
+  Definition is_abstraction (V0:Valuation) (t:trace__C) (t':trace__S) : Prop :=
+    Beval V0 (pc t') = true /\ Comp V0 (acc_subst id_sub t') = acc_val V0 t.
+End TraceSemantics.

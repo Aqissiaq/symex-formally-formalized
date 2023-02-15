@@ -6,6 +6,7 @@
 From Coq Require Import Strings.String.
 From Coq Require Import Bool.Bool.
 From Coq Require Import Init.Nat.
+From Coq Require Import Structures.DecidableTypeEx.
 
 Module BasicExpr.
   Inductive Aexpr : Type :=
@@ -30,13 +31,26 @@ Module BasicExpr.
   Notation "( x )" := x (in custom com, x at level 99) : com_scope.
   Notation "x" := x (in custom com at level 0, x constr at level 0) : com_scope.
   Notation "x + y"   := (APlus x y) (in custom com at level 70, no associativity).
-  Notation "x <= y"   := (BLeq x y) (in custom com at level 70, no associativity).
+  Notation "x <= y"  := (BLeq x y) (in custom com at level 70, no associativity).
   Notation "'~' b"   := (BNot b) (in custom com at level 75, right associativity).
   Notation "x && y"  := (BAnd x y) (in custom com at level 80, left associativity).
 
   Definition X : string := "x".
   Definition Y : string := "y".
   Definition Z : string := "z".
+
+  Module Aexpr_as_DT.
+    Definition t := Aexpr.
+    Definition eq_dec (x y: t): {x = y} + {x <> y}.
+    Proof. Admitted.
+  End Aexpr_as_DT.
+
+  Module Bexpr_as_DT.
+    Definition t := Bexpr.
+    Definition eq_dec (x y: t): {x = y} + {x <> y}.
+    Proof. Admitted.
+  End Bexpr_as_DT.
+
 
 End BasicExpr.
 

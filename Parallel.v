@@ -49,6 +49,8 @@ Notation "'if' x '{' y '}' '{' z '}'" :=
 
 Open Scope com_scope.
 (* useful lemma for progress in (trace) semantics *)
+Create HintDb Par_db.
+
 Lemma SSeq_disjoint : forall s s', <{s ; s'}> <> s'.
 Proof. intros s s' contra. destruct s;
          induction s'; try discriminate;
@@ -82,3 +84,6 @@ Proof. intros b s s' contra. destruct s;
          try (inversion contra; subst);
          apply IHs'2; assumption.
 Qed.
+
+#[export]
+Hint Resolve SSeq_disjoint SPar_left_disjoint SPar_right_disjoint SIf_true_disjoint SIf_false_disjoint : Par_db.

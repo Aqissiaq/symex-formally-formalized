@@ -52,6 +52,15 @@ Proof.
   destruct (x =? y)%string; reflexivity.
 Qed.
 
+Lemma update_comm: forall {A: Type} (m: total_map A) x1 x2 v1 v2,
+    x1 <> x2 -> (x1 !-> v1 ; x2 !-> v2 ; m) = (x2 !-> v2 ; x1 !-> v1 ; m).
+Proof.
+  intros. extensionality y. unfold update.
+  destruct (String.eqb_spec x1 y); destruct (String.eqb_spec x2 y);
+    try reflexivity.
+  exfalso. apply H. rewrite e, e0. reflexivity.
+Qed.
+
 Module BasicMaps.
   Import BasicExpr.
 
