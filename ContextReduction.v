@@ -471,6 +471,7 @@ Qed.
 
 
 (* Framing, because it shows up in several proofs *)
-(* Framing corresponds to accumulated substitutions with different initial states
-   when working with (this style of) traces. We will see how hard/easy that is to incorporate
+(*
+  Framing corresponds to accumulated substitutions with different initial states
+  when working with (this style of) traces. We will see how hard/easy that is to incorporate
 *)
