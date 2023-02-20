@@ -150,4 +150,12 @@ Module TraceSemantics.
 
   Definition is_abstraction (V0:Valuation) (t:trace__C) (t':trace__S) : Prop :=
     Beval V0 (pc t') = true /\ Comp V0 (acc_subst id_sub t') = acc_val V0 t.
+
+  Fixpoint Apply_t (s: sub) (t: trace__S) : trace__S :=
+    match t with
+    | [] => []
+    | xs :: Asgn__S x e => Apply_t s xs :: Asgn__S x (Aapply s e)
+    | xs :: Cond e => Apply_t s xs :: Cond (Bapply s e)
+    end.
+
 End TraceSemantics.

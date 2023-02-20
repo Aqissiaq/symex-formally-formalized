@@ -388,6 +388,7 @@ Proof.
   - rewrite app_comm_cons. apply pe_interference_free. assumption.
 Qed.
 
+(* Seems like it will be useful *)
 Theorem equiv_acc_subst: forall t t', t ~ t' -> acc_subst id_sub t = acc_subst id_sub t'.
 Proof.
   intros. induction H; try auto. rewrite IHpath_equiv1. assumption.
@@ -400,6 +401,7 @@ Proof.
     + assumption.
 Qed.
 
+(* This is not quite confluence, but kind of step-wise *)
 Theorem diamond_property: forall s1 s2 s1' s2' t e1 e2,
     red__S (t, <{s1 || s2}>) (t :: e1, <{s1' || s2}>) ->
     red__S (t, <{s1 || s2}>) (t :: e2, <{s1 || s2'}>) ->
@@ -443,7 +445,7 @@ Proof.
         contradiction.
 Qed.
 
-Theorem POR_bisimulation: forall s t1 s' t1' t2,
+Lemma POR_bisim_step: forall s t1 s' t1' t2,
     t1 ~ t2 -> red__S (t1, s) (t1', s') ->
     exists t2', red__S (t2, s) (t2', s') /\ t1' ~ t2'.
 Proof.
@@ -452,3 +454,23 @@ Proof.
     try (apply path_equiv_extend);
     assumption.
 Qed.
+
+Theorem POR_bisim: forall s t1 s' t1' t2,
+    t1 ~ t2 -> red_star__S (t1, s) (t1', s') ->
+    exists t2', red_star__S (t2, s) (t2', s') /\ t1' ~ t2'.
+Proof.
+  intros. dependent induction H0.
+  - exists t2. split; [constructor | assumption].
+  - destruct y. edestruct (IHclos_refl_trans_n1 s t1 s0 t) as [t2' [IHcomp IHequiv]];
+      try assumption; try reflexivity.
+    destruct (POR_bisim_step _ _ _ _ _ IHequiv H1) as [t2_final [comp_final equiv_final]].
+    exists t2_final. split.
+    + econstructor. apply comp_final. apply IHcomp.
+    + assumption.
+Qed.
+
+
+(* Framing, because it shows up in several proofs *)
+(* Framing corresponds to accumulated substitutions with different initial states
+   when working with (this style of) traces. We will see how hard/easy that is to incorporate
+*)

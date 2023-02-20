@@ -6,7 +6,6 @@
 From Coq Require Import Strings.String.
 From Coq Require Import Bool.Bool.
 From Coq Require Import Init.Nat.
-From Coq Require Import Structures.DecidableTypeEx.
 
 Module BasicExpr.
   Inductive Aexpr : Type :=
@@ -50,7 +49,6 @@ Module BasicExpr.
     Definition eq_dec (x y: t): {x = y} + {x <> y}.
     Proof. Admitted.
   End Bexpr_as_DT.
-
 
 End BasicExpr.
 
