@@ -182,74 +182,6 @@ Proof.
     + assumption.
 Qed.
 
-(* This is not quite confluence, but kind of step-wise *)
-Theorem diamond_property: forall s1 s2 s1' s2' t e1 e2,
-    red__S (t, <{s1 || s2}>) (t :: e1, <{s1' || s2}>) ->
-    red__S (t, <{s1 || s2}>) (t :: e2, <{s1 || s2'}>) ->
-    red__S (t :: e1, <{s1' || s2}>) ((t :: e1) :: e2, <{s1' || s2'}>) /\
-    red__S (t :: e2, <{s1 || s2'}>) ((t :: e2) :: e1, <{s1' || s2'}>)
-.
-Proof.
-  split.
-  - dependent destruction H0. dependent destruction H1;
-      inversion x0; inversion x; subst.
-    + dependent destruction H0;
-        apply cons_neq' in x; contradiction.
-    + dependent destruction H0;
-        apply context_injective in H5; try discriminate; try assumption; symmetry in H5;
-        [ apply SIf_true_disjoint in H5
-        | apply SIf_false_disjoint in H5
-        | apply SSeq_disjoint in H5
-        | apply SPar_right_disjoint in H5
-        | apply SPar_left_disjoint in H5];
-        contradiction.
-    + dependent destruction H0;
-        try (apply cons_neq' in x; contradiction);
-        try (apply ctx_red_intro with (C := fun s => SPar s1' (C s));
-             [constructor | constructor; assumption]).
-  - dependent destruction H. dependent destruction H0;
-      inversion x0; inversion x; subst.
-    + dependent destruction H;
-        apply cons_neq' in x; contradiction.
-    + dependent destruction H;
-        try (apply cons_neq' in x; contradiction);
-        try (apply ctx_red_intro with (C := fun s => SPar (C s) s2');
-             [constructor | constructor; assumption]).
-    + dependent destruction H;
-        apply context_injective in H6; try assumption; apply symmetry in H6;
-        [ discriminate
-        | apply SIf_true_disjoint in H6
-        | apply SIf_false_disjoint in H6
-        | apply SSeq_disjoint in H6
-        | apply SPar_right_disjoint in H6
-        | apply SPar_left_disjoint in H6];
-        contradiction.
-Qed.
-
-Lemma POR_bisim_step: forall s t1 s' t1' t2,
-    t1 ~ t2 -> red__S (t1, s) (t1', s') ->
-    exists t2', red__S (t2, s) (t2', s') /\ t1' ~ t2'.
-Proof.
-  intros. inversion H0; subst. inversion H4; subst; eexists; split;
-    try (constructor; [constructor | assumption]);
-    try (apply path_equiv_extend);
-    assumption.
-Qed.
-
-Theorem POR_bisim: forall s t1 s' t1' t2,
-    t1 ~ t2 -> red_star__S (t1, s) (t1', s') ->
-    exists t2', red_star__S (t2, s) (t2', s') /\ t1' ~ t2'.
-Proof.
-  intros. dependent induction H0.
-  - exists t2. split; [constructor | assumption].
-  - destruct y. edestruct (IHclos_refl_trans_n1 s t1 s0 t) as [t2' [IHcomp IHequiv]];
-      try assumption; try reflexivity.
-    destruct (POR_bisim_step _ _ _ _ _ IHequiv H1) as [t2_final [comp_final equiv_final]].
-    exists t2_final. split.
-    + econstructor. apply comp_final. apply IHcomp.
-    + assumption.
-Qed.
-
 (* Framing, because it shows up in several proofs *)
 (*
   Framing corresponds to accumulated substitutions with different initial states
@@ -293,15 +225,5 @@ Fixpoint satisfies (V: Valuation) (p: DL) : Prop :=
   | {{ exists x : p }} => exists e, satisfies (x !-> Aeval V e ; V) p
   | {{ forall x : p }} => forall e, satisfies (x !-> Aeval V e ; V) p
   | {{ [ s ] p }} => forall V0 t, red_star__C V0 ([], s) (t, SSkip) -> satisfies (acc_val V0 t) p
-  | {{ { s } p }} => exists V', V' = Comp V s
+  | {{ { s } p }} => satisfies (Comp V s) p
   end.
-Reserved Notation "G ',' t '=>' p" (at level 40).
-Inductive DL_Derivable: (list DL) -> trace__S -> DL -> Prop :=
-| DLReduce: forall G s p,
-    G, [] => {{ {s} p }} -> G, [] => {{ {s} ([ SSkip ] p) }}
-| DLAssign: forall C G sig x e s p,
-    is_context C ->
-    G, [] => {{ {update sig x (Aapply s e)} ([C s] p) }}
-
-  where "G ',' t '=>' p" := (DL_Derivable G t p).
-

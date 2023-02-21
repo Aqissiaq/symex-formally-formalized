@@ -445,7 +445,7 @@ Proof.
         contradiction.
 Qed.
 
-Lemma POR_bisim_step: forall s t1 s' t1' t2,
+Lemma equiv_step: forall s t1 s' t1' t2,
     t1 ~ t2 -> red__S (t1, s) (t1', s') ->
     exists t2', red__S (t2, s) (t2', s') /\ t1' ~ t2'.
 Proof.
@@ -455,7 +455,7 @@ Proof.
     assumption.
 Qed.
 
-Theorem POR_bisim: forall s t1 s' t1' t2,
+Theorem equiv_star: forall s t1 s' t1' t2,
     t1 ~ t2 -> red_star__S (t1, s) (t1', s') ->
     exists t2', red_star__S (t2, s) (t2', s') /\ t1' ~ t2'.
 Proof.
@@ -463,15 +463,84 @@ Proof.
   - exists t2. split; [constructor | assumption].
   - destruct y. edestruct (IHclos_refl_trans_n1 s t1 s0 t) as [t2' [IHcomp IHequiv]];
       try assumption; try reflexivity.
-    destruct (POR_bisim_step _ _ _ _ _ IHequiv H1) as [t2_final [comp_final equiv_final]].
+    destruct (equiv_step _ _ _ _ _ IHequiv H1) as [t2_final [comp_final equiv_final]].
     exists t2_final. split.
     + econstructor. apply comp_final. apply IHcomp.
     + assumption.
 Qed.
 
+Definition selection_function: Type := forall t, {t' : trace__S | t ~ t'}.
+Definition select (f:selection_function) (t: trace__S) := proj1_sig (f t).
 
-(* Framing, because it shows up in several proofs *)
-(*
-  Framing corresponds to accumulated substitutions with different initial states
-  when working with (this style of) traces. We will see how hard/easy that is to incorporate
-*)
+Definition id_select: selection_function.
+  intro. econstructor. reflexivity.
+Defined.
+
+Variant head_red__POR (f: selection_function): relation (trace__S * Stmt) :=
+  | POR_intro: forall s s' t t',
+      head_red__S (select f t, s) (t', s') ->
+      head_red__POR f (t, s) (t', s').
+
+Definition red__POR f := context_red (head_red__POR f).
+Definition red_star__POR f := clos_refl_trans_n1 _ (red__POR f).
+
+Ltac solve_equivs :=
+  repeat (
+      match goal with
+      | _ : _ |- ?t ~ ?t => reflexivity
+      | H : ?t ~ ?t' |- ?t' ~ ?t => symmetry in H; assumption
+      | H1 : ?t1 ~ ?t2, H2 : ?t2 ~ ?t3 |- ?t1 ~ ?t3 => transitivity t2; assumption
+      | H1 : ?t2 ~ ?t1, H2 : ?t2 ~ ?t3 |- ?t1 ~ ?t3 => symmetry in H1
+      | _ : _ |- (?t :: _) ~ (?t' :: _) => apply path_equiv_extend
+      (* dealing with selection functions*)
+      | _ : _ |- ?t' ~ select ?f ?t => unfold select; destruct (f t); simpl
+      | _ : _ |- select ?f ?t ~ ?t' => unfold select; destruct (f t); simpl
+      | H : ?T |- ?T => apply H
+      | _ => idtac
+      end).
+
+Theorem correctness__POR: forall f s0 t0 s t,
+    red_star__POR f (t0, s0) (t, s) ->
+    exists t', red_star__S (t0, s0) (t', s) /\ t ~ t'.
+Proof.
+  intros. dependent induction H.
+  - exists t. split; constructor.
+  - destruct y. destruct (IHclos_refl_trans_n1 s0 t0 s1 t1) as [t' [IHcomp IHequiv]];
+      try reflexivity.
+    dependent destruction H. dependent destruction H.
+    specialize (equiv_step (C s2) (select f t1) (C s') t t'). intros.
+    destruct H2 as [t2 [equiv_step Hequiv]].
+    + solve_equivs.
+    + constructor; assumption.
+    + eexists. split.
+      * econstructor.
+        ** apply equiv_step.
+        ** assumption.
+      * assumption.
+Qed.
+
+Lemma completeness_step__POR: forall f t0 s0 t s,
+    red__S (t0, s0) (t, s) ->
+    exists t', red__POR f (t0, s0) (t', s) /\ t ~ t'.
+Proof.
+  intros. inversion H; inversion H3; subst; eexists; split;
+    try (constructor; [repeat constructor | assumption]);
+    solve_equivs.
+Qed.
+
+(* this turns out to be rather tricky (who knew) *)
+Theorem completeness__POR: forall t0 s0 t s,
+    red_star__S (t0, s0) (t, s) ->
+    exists f t', red_star__POR f (t0, s0) (t', s) /\ t ~ t'.
+Proof.
+  intros. apply clos_rtn1_rt in H. apply clos_rt_rt1n in H.
+  dependent induction H.
+  - eexists. exists t. split; constructor.
+  - destruct y. destruct (IHclos_refl_trans_1n t1 s1 t s) as [f' [t' [IHcomp IHequiv]]];
+      try reflexivity.
+    destruct (completeness_step__POR f' t0 s0 t1 s1) as [t_step [comp_step equiv_step]];
+      try assumption.
+    eexists. eexists. split.
+    + apply clos_rt_rtn1. apply clos_rt1n_rt. econstructor.
+      * apply comp_step.
+        *
