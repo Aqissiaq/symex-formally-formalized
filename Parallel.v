@@ -27,6 +27,7 @@ Inductive Stmt : Type :=
 | SSeq (s1 s2: Stmt)
 | SPar (s1 s2:Stmt)
 | SIf (b:Bexpr) (s1 s2:Stmt)
+| SWhile (b: Bexpr) (s: Stmt)
 | SSkip.
 
 Notation "'skip'" := SSkip (in custom com at level 80) : com_scope.
@@ -44,13 +45,15 @@ Notation "'if' x '{' y '}' '{' z '}'" :=
          (SIf x y z)
            (in custom com at level 89, x at level 99,
             y at level 99, z at level 99) : com_scope.
-
-(** Semantics would go here, but I am not interested yet *)
+Notation "'while' x '{' y '}'" :=
+         (SWhile x y)
+           (in custom com at level 89, x at level 99,
+            y at level 99) : com_scope.
 
 Open Scope com_scope.
-(* useful lemma for progress in (trace) semantics *)
 Create HintDb Par_db.
 
+(* useful lemmas for progress in (trace) semantics *)
 Lemma SSeq_disjoint : forall s s', <{s ; s'}> <> s'.
 Proof. intros s s' contra. destruct s;
          induction s'; try discriminate;

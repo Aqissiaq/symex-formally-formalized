@@ -67,6 +67,10 @@ Inductive head_red__S: (trace__S * Stmt) -> (trace__S * Stmt) -> Prop :=
     head_red__S (t, <{ if b {s1} {s2} }>) (t :: Cond b, s1)
 | head_red_cond_false__S: forall t b s1 s2,
     head_red__S (t, <{ if b {s1} {s2} }>) (t :: Cond (BNot b), s2)
+| head_red_loop_true__S: forall t b s,
+    head_red__S (t, <{ while b {s} }>) (t :: Cond b, <{s ; while b {s}}>)
+| head_red_loop_false__S: forall t b s,
+    head_red__S (t, <{ while b {s} }>) (t :: Cond (BNot b), SSkip)
 (* I don't love these cases, they're a bit inelegant *)
 | head_red_skip_seq__S: forall s t,
     head_red__S (t, <{skip ; s}>) (t, s)
@@ -120,6 +124,8 @@ Inductive head_red__C (V0:Valuation): (trace__C * Stmt) -> (trace__C * Stmt) -> 
     head_red__C V0 (t, <{ x := e }>) (t :: (x, Aeval_t V0 t e), SSkip)
 | head_red_cond__C: forall t b s1 s2,
     head_red__C V0 (t, <{ if b {s1} {s2} }>) (t, if (Beval_t V0 t b) then s1 else s2)
+| head_red_loop__C: forall t b s,
+    head_red__C V0 (t, <{while b {s}}>) (t, if (Beval_t V0 t b) then <{s ; while b {s}}> else SSkip)
 (* I don't love these cases, they're a bit inelegant *)
 | head_red_skip_seq__C: forall s t,
     head_red__C V0 (t, <{skip ; s}>) (t, s)
@@ -168,6 +174,23 @@ Proof.
       unfold Beval_t in H3. rewrite H in H3. apply H3.
     + assumption.
     + simpl. assumption.
+  - simpl in H1. apply andb_true_iff in H1. destruct H1.
+    unfold Bapply_t in H. rewrite <- comp_subB in H. rewrite <- H2 in H.
+    exists t0'. splits.
+    (* there's got to be a better way to do this...*)
+    + assert (head_red__C V0 (t0', <{ while b {s} }>) (t0', if Beval_t V0 t0' b then <{s ; while b {s}}> else SSkip)) by constructor.
+      unfold Beval_t in H3. rewrite H in H3. apply H3.
+    + assumption.
+    + simpl. assumption.
+  - simpl in H1. apply andb_true_iff in H1. destruct H1.
+    apply negb_true_iff in H.
+    unfold Bapply_t in H. rewrite <- comp_subB in H. rewrite <- H2 in H.
+    exists t0'. splits.
+    (* there's got to be a better way to do this...*)
+    + assert (head_red__C V0 (t0', <{ while b {s} }>) (t0', if Beval_t V0 t0' b then <{s ; while b {s}}> else SSkip)) by constructor.
+      unfold Beval_t in H3. rewrite H in H3. apply H3.
+    + assumption.
+    + simpl. assumption.
 Qed.
 
 Theorem correctness : forall s s' t0 t t0' V0,
@@ -212,6 +235,21 @@ Proof.
       * simpl. assumption.
     + eexists. splits.
       * apply head_red_cond_false__S.
+      * assumption.
+      * simpl. apply andb_true_iff. split.
+        ** unfold Bapply_t. rewrite <- comp_subB. rewrite H1. apply negb_true_iff. assumption.
+        ** assumption.
+      * simpl. assumption.
+  - destruct (Beval_t V0 t b) eqn:Hbranch; unfold Beval_t in Hbranch.
+    + eexists. splits.
+      * apply head_red_loop_true__S.
+      * assumption.
+      * simpl. apply andb_true_iff. split.
+        ** unfold Bapply_t. rewrite <- comp_subB. rewrite H1. assumption.
+        ** assumption.
+      * simpl. assumption.
+    + eexists. splits.
+      * apply head_red_loop_false__S.
       * assumption.
       * simpl. apply andb_true_iff. split.
         ** unfold Bapply_t. rewrite <- comp_subB. rewrite H1. apply negb_true_iff. assumption.

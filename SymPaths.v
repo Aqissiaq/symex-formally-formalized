@@ -228,6 +228,8 @@ Proof.
         [ discriminate
         | apply SIf_true_disjoint in H6
         | apply SIf_false_disjoint in H6
+        | symmetry in H6; apply SSeq_disjoint in H6
+        | discriminate
         | apply SSeq_disjoint in H6
         | apply SPar_right_disjoint in H6
         | apply SPar_left_disjoint in H6];

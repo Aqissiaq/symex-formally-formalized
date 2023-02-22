@@ -12,6 +12,8 @@ condition and its final state can be obtained as a composition of the initial st
 (** This file contains a second take, trying to move more elegantly between symbolic and concrete states
  by being less general *)
 
+(* Suppresses an annoying warning in completeness'*)
+Set Warnings "-unused-intro-pattern".
 From Coq Require Import Strings.String.
 From Coq Require Import Bool.Bool.
 From Coq Require Import Init.Datatypes.

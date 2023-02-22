@@ -3,7 +3,7 @@
 (** Anticipating the need for trace semantics for reduction in a concurrent setting,
     we develop them for the language extended with procedures from Recursion.v
  *)
-
+Set Warnings "-notation-overridden,-parsing".
 From Coq Require Import Strings.String.
 From Coq Require Import Bool.Bool.
 From Coq Require Import Arith.EqNat. Import Nat.

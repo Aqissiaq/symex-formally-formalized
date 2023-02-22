@@ -10,4 +10,5 @@ TraceSemantics.v
 Parallel.v
 ParallelTraces.v
 ContextReduction.v
+SymPaths.v
 #Oop.v
