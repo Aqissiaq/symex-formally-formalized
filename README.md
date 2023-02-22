@@ -2,10 +2,11 @@
 Coq formalization of [Symbolic Execution Formally Explained](https://link.springer.com/article/10.1007/s00165-020-00527-y).
 
 ## Build
-The included Makefile should allow just
+The included Makefile (created for Coq 8.16.1) should allow just
 ```sh
 make
 ```
+
 To update the Makefile use
 ```sh
 coq_makefile -f _CoqProject -o Makefile
@@ -27,7 +28,10 @@ The approach to syntax and transition relation semantics is based on [Programmin
   - Some examples of programs and their traces are found in [examples](./Trace_examples.v)
 - [ParallelTraces](./ParallelTraces.v) adds a parallel composition operator to the base language with trace semantics.
 Additionally contains some preliminary results about reduction of trace sets.
+    - The base language with a parallel operator is in [Parallel](./Parallel.v)
 - [ContextReduction](./ContextReduction) contains an alternative approach to syntax based on reductions in a context inspired by [Mechanized Semantics](https://github.com/xavierleroy/cdf-mech-sem)
+- [SymPaths](./SymPaths.v) formalizes [partial order reduction](https://rdcu.be/c58yn) of symbolic execution in the context reduction style
+- [SimpleParallelLogic](./SimpleParallelLogic.v) contains some notes on a context-reduction logic for [Parallel](./Parallel.v)
 
 ### Other
 - [PLACES](./PLACES) contains a talk proposal to [PLACES 2023](https://places-workshop.github.io/2023/)
