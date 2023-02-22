@@ -278,13 +278,13 @@ Definition red_star__POR f := clos_refl_trans_n1 _ (red__POR f).
 Ltac solve_equivs := repeat (
       match goal with
       | _ : _ |- ?t ~ ?t => reflexivity
-      | H : ?t ~ ?t' |- ?t' ~ ?t => symmetry in H; assumption
-      | H1 : ?t1 ~ ?t2, H2 : ?t2 ~ ?t3 |- ?t1 ~ ?t3 => transitivity t2; assumption
+      | H : ?t ~ ?t' |- ?t' ~ ?t => symmetry
+      | H1 : ?t1 ~ ?t2, H2 : ?t2 ~ ?t3 |- ?t1 ~ ?t3 => transitivity t2
       | H1 : ?t2 ~ ?t1, H2 : ?t2 ~ ?t3 |- ?t1 ~ ?t3 => symmetry in H1
       | _ : _ |- (?t :: _) ~ (?t' :: _) => apply path_equiv_extend
       (* dealing with selection functions*)
       | _ : _ |- ?t' ~ select ?f ?t => unfold select; destruct (f t); simpl
-      | _ : _ |- select ?f ?t ~ ?t' => unfold select; destruct (f t); simpl
+      | _ : _ |- select ?f ?t ~ ?t' => symmetry
       | H : ?T |- ?T => apply H
       | _ => fail
       end).
@@ -310,9 +310,9 @@ Proof.
 Qed.
 
 Lemma completeness_step__POR: forall f t0 t0' s0 t s,
-    t0 ~ t0' ->
-    red__S (t0, s0) (t, s) ->
-    exists t', red__POR f (t0', s0) (t', s) /\ t ~ t'.
+    t0 ~ t0' -> red__S (t0, s0) (t, s) ->
+    exists t', red__POR f (t0', s0) (t', s)
+        /\ t ~ t'.
 Proof.
   intros. inversion H0; inversion H4; subst; eexists; split;
     try (constructor; [repeat constructor | assumption]);
@@ -321,11 +321,13 @@ Qed.
 
 Theorem completeness__POR: forall f t0 s0 t s,
     red_star__S (t0, s0) (t, s) ->
-    exists t', red_star__POR f (t0, s0) (t', s) /\ t ~ t'.
+    exists t', red_star__POR f (t0, s0) (t', s)
+        /\ t ~ t'.
 Proof.
   intros. dependent induction H.
   - exists t. split; constructor.
-  - destruct y. destruct (IHclos_refl_trans_n1 t0 s0 t1 s1) as [t' [IHcomp IHequiv]];
+  - destruct y.
+    destruct (IHclos_refl_trans_n1 t0 s0 t1 s1) as [t' [IHcomp IHequiv]];
       try reflexivity.
     destruct (completeness_step__POR f t1 t' s1 t s) as [t_step [comp_step equiv_step]];
       try assumption; solve_equivs.
@@ -336,44 +338,64 @@ Proof.
     + assumption.
 Qed.
 
-(** * Dynamic Logic (section 4)*)
+(** * Dynamic Logic (section 4) *)
 
-Inductive DL : Type :=
-  | DLExpr (b: Bexpr)
-  | DLNeg (p: DL)
-  | DLAnd (p1 p2: DL)
-  | DLOr (p1 p2: DL)
-  | DLExists (x:Var) (p: DL)
-  | DLForall (x:Var) (p: DL)
-  | DLBox (s: Stmt) (p: DL)
-  | DLUpdate (s: sub) (p: DL)
+(* using Coq's propositions as (constructive) FOL over valuations *)
+(* approach like Hoare logic in PLF *)
+Definition Formula := Valuation -> Prop.
+(* Notation "V |= p" := (p V) (at level 80). *)
+
+Definition DLAnd (p1 p2: Formula): Formula := fun V => p1 V /\ p2 V.
+Definition DLExists (x: Var) (p: Formula): Formula := fun V => exists e, p (x !-> Aeval V e ; V).
+Definition DLForall (x: Var) (p: Formula): Formula := fun V => forall e, p (x !-> Aeval V e ; V).
+(* this one is a bit experimental *)
+Definition DLBox (s: Stmt) (p: Formula): Formula :=
+  fun V => forall t, red_star__C V ([], s) (t, SSkip) -> p (acc_val V t).
+Definition DLUpdate (s: sub) (p: Formula): Formula := fun V => p (Comp V s).
+Definition Sequent (G P: Formula): Formula :=
+  fun V => G V -> P V.
+
+Definition DLpc (t : trace__S): Formula := fun V => Beval V (pc t) = true.
+
+Inductive head__DLT: relation (Formula * trace__S * Stmt) :=
+  (* this "stuttering step" causes problems with the DLT-S-correspondence *)
+  (* | DLT_reduce: forall G P t sig, *)
+      (* head__DLT (Sequent G (DLUpdate sig P), t, SSkip) (Sequent (DLAnd G (DLpc t)) (DLUpdate sig P), t, SSkip) *)
+  | DLT_assign: forall G P t sig x e,
+      head__DLT (Sequent G (DLUpdate sig P), t, <{x := e}>)
+        (Sequent G (DLUpdate (x !-> Aapply sig e; sig) P), t :: Asgn__S x e, SSkip)
+  | DLT_cond_true: forall G P t sig b s1 s2,
+      head__DLT (Sequent G (DLUpdate sig P), t, <{if b {s1}{s2}}>)
+              (Sequent G (DLUpdate sig P), t :: Cond b, <{s1}>)
+  | DLT_cond_false: forall G P t sig b s1 s2,
+      head__DLT (Sequent G (DLUpdate sig P), t, <{if b {s1}{s2}}>)
+              (Sequent G (DLUpdate sig P), t :: Cond (BNot b), <{s2}>)
+  | DLT_loop_true: forall G P t sig b s,
+      head__DLT (Sequent G (DLUpdate sig P), t, <{while b {s}}>)
+              (Sequent G (DLUpdate sig P), t :: Cond b, <{s ; while b {s}}>)
+  | DLT_loop_false: forall G P t sig b s,
+      head__DLT (Sequent G (DLUpdate sig P), t, <{while b {s}}>)
+              (Sequent G (DLUpdate sig P), t :: Cond (BNot b), SSkip)
+  | DLT_skip_seq: forall P t s,
+      head__DLT (P, t, <{SSkip ; s}>) (P, t, s)
+  | DLT_skip_par_l: forall P t s,
+      head__DLT (P, t, <{SSkip || s}>) (P, t, s)
+  | DLT_skip_par_r: forall P t s,
+      head__DLT (P, t, <{s || SSkip}>) (P, t, s)
 .
 
-Coercion DLExpr: Bexpr >-> DL.
-Declare Custom Entry dl.
-Declare Scope dl_scope.
+Definition DLT := context_red head__DLT.
+Definition Derivable__DLT := clos_refl_trans_n1 _ DLT.
 
-Notation "{{ p }}" := p (at level 0, p custom dl at level 99) : dl_scope.
-Notation "( x )" := x (in custom dl, x at level 99) : dl_scope.
-Notation "x" := x (in custom dl at level 0, x constr at level 0) : dl_scope.
-Notation "'~' p"   := (DLNeg p) (in custom dl at level 75, right associativity).
-Notation "x /\ y"   := (DLAnd x y) (in custom dl at level 70, no associativity).
-Notation "x \/ y"   := (DLOr x y) (in custom dl at level 70, no associativity).
-Notation "'exists' x ':' p"  := (DLExists x p) (in custom dl at level 70, no associativity).
-Notation "'forall' x ':' p"  := (DLForall x p) (in custom dl at level 70, no associativity).
-Notation "[ s ] p"  := (DLBox s p) (in custom dl at level 70, no associativity) : dl_scope.
-Notation "{ s } p"  := (DLUpdate s p) (in custom dl at level 70, no associativity) : dl_scope.
+Lemma DL_S_correspondence: forall G P t t' sig0 s s',
+    (exists sig, DLT (Sequent G (DLUpdate sig0 P), t, s) (Sequent G (DLUpdate sig P), t', s'))
+    <-> red__S (t, s) (t', s').
+Proof.
+  intros. split; intro.
+  - destruct H as [sig H]. dependent destruction H. inversion H; subst;
+      (constructor; [constructor | assumption]).
+  - dependent destruction H. inversion H; subst; eexists;
+      (constructor; [constructor | assumption]).
+Qed.
 
-Open Scope dl_scope.
-
-Fixpoint satisfies (V: Valuation) (p: DL) : Prop :=
-  match p with
-  | DLExpr b => Beval V b = true
-  | {{ ~ p }} => ~ (satisfies V p)
-  | {{ p1 /\ p2 }} => satisfies V p1 /\ satisfies V p2
-  | {{ p1 \/ p2 }} => satisfies V p1 \/ satisfies V p2
-  | {{ exists x : p }} => exists e, satisfies (x !-> Aeval V e ; V) p
-  | {{ forall x : p }} => forall e, satisfies (x !-> Aeval V e ; V) p
-  | {{ [ s ] p }} => forall V0 t, red_star__C V0 ([], s) (t, SSkip) -> satisfies (acc_val V0 t) p
-  | {{ { s } p }} => satisfies (Comp V s) p
-  end.
+(* I do not understand the soundness and (relative) completeness formulations for DL(T) *)
