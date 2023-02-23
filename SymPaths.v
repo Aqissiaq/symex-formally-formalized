@@ -399,3 +399,216 @@ Proof.
 Qed.
 
 (* I do not understand the soundness and (relative) completeness formulations for DL(T) *)
+
+Definition final_trace (s: Stmt) (t: trace__S): Prop := red_star__S ([], s) (t, SSkip).
+
+Example example2_stmt: Stmt := <{ Y := X || Z := X || X := 2 }>.
+
+Example example2_t1: final_trace example2_stmt [Asgn__S Y X ; Asgn__S Z X ; Asgn__S X 2].
+Proof.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y X;Asgn__S Z X], <{ X := 2 }>)).
+  apply ctx_red_intro with (C := fun s => s); constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y X;Asgn__S Z X], <{skip || X := 2}>)).
+  apply ctx_red_intro with (C := fun s => s); constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y X], <{ Z := X || X := 2}>)).
+  apply ctx_red_intro with (C := fun s => <{ s || X := 2 }>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y X], <{ skip || Z := X || X := 2}>)).
+  apply ctx_red_intro with (C := fun s => s); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([], <{ Y := X || Z := X || X := 2}>)).
+  apply ctx_red_intro with (C := fun s => <{ s || Z := X || X := 2 }>); repeat constructor.
+  constructor.
+Qed.
+
+Example example2_t2: final_trace example2_stmt [Asgn__S Z X ; Asgn__S Y X ; Asgn__S X 2].
+Proof.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Z X;Asgn__S Y X], <{ X := 2 }>)).
+  apply ctx_red_intro with (C := fun s => s); constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Z X;Asgn__S Y X], <{skip || X := 2}>)).
+  apply ctx_red_intro with (C := fun s => s); constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Z X;Asgn__S Y X], <{skip || skip || X := 2}>)).
+  apply ctx_red_intro with (C := fun s => s); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Z X], <{ Y := X || skip || X := 2}>)).
+  apply ctx_red_intro with (C := fun s => <{s || skip || X := 2}>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([], <{ Y := X || Z := X || X := 2}>)).
+  apply ctx_red_intro with (C := fun s => <{Y := X || s || X := 2}>); repeat constructor.
+  constructor.
+Qed.
+
+Example example2_t3: final_trace example2_stmt [Asgn__S Y X ; Asgn__S X 2 ; Asgn__S Z X].
+Proof.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y X ; Asgn__S X 2 ; Asgn__S Z X], <{ skip || skip }>)).
+  apply ctx_red_intro with (C := fun s => s); constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y X ; Asgn__S X 2 ; Asgn__S Z X], <{ skip || skip || skip }>)).
+  apply ctx_red_intro with (C := fun s => s); constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y X ; Asgn__S X 2], <{ skip || Z := X || skip }>)).
+  apply ctx_red_intro with (C := fun s => <{ skip || s || skip }>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y X], <{ skip || Z := X || X := 2 }>)).
+  apply ctx_red_intro with (C := fun s => <{ skip || Z := X || s }>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([], <{ Y := X || Z := X || X := 2 }>)).
+  apply ctx_red_intro with (C := fun s => <{ s || Z := X || X := 2 }>); repeat constructor.
+  constructor.
+Qed.
+
+Example example2_t4: final_trace example2_stmt [Asgn__S Z X ; Asgn__S X 2 ; Asgn__S Y X].
+Proof.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Z X ; Asgn__S X 2 ; Asgn__S Y X], <{ skip || skip }>)).
+  apply ctx_red_intro with (C := fun s => s); constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Z X ; Asgn__S X 2 ; Asgn__S Y X], <{ skip || skip || skip }>)).
+  apply ctx_red_intro with (C := fun s => s); constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Z X ; Asgn__S X 2], <{ Y := X || skip || skip }>)).
+  apply ctx_red_intro with (C := fun s => <{s || skip || skip}>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Z X], <{ Y := X || skip || X := 2 }>)).
+  apply ctx_red_intro with (C := fun s => <{Y := X || skip || s}>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([], <{ Y := X || Z := X || X := 2 }>)).
+  apply ctx_red_intro with (C := fun s => <{Y := X || s || X := 2}>); repeat constructor.
+  constructor.
+Qed.
+
+Example example2_t5: final_trace example2_stmt [Asgn__S X 2 ; Asgn__S Y X ; Asgn__S Z X].
+Proof.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S X 2 ; Asgn__S Y X ; Asgn__S Z X], <{ skip || skip }>)).
+  apply ctx_red_intro with (C := fun s => s); constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S X 2 ; Asgn__S Y X ; Asgn__S Z X], <{ skip || skip || skip }>)).
+  apply ctx_red_intro with (C := fun s => s); constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S X 2 ; Asgn__S Y X], <{ skip || Z := X || skip }>)).
+  apply ctx_red_intro with (C := fun s => <{skip || s || skip}>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S X 2], <{ Y := X || Z := X || skip }>)).
+  apply ctx_red_intro with (C := fun s => <{s || Z := X || skip}>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([], <{ Y := X || Z := X || X := 2 }>)).
+  apply ctx_red_intro with (C := fun s => <{ Y := X || Z := X || s}>); repeat constructor.
+  constructor.
+Qed.
+
+Example example2_t6: final_trace example2_stmt [Asgn__S X 2 ; Asgn__S Z X ; Asgn__S Y X].
+Proof.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S X 2 ; Asgn__S Z X ; Asgn__S Y X], <{ skip || skip }>)).
+  apply ctx_red_intro with (C := fun s => s); constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S X 2 ; Asgn__S Z X ; Asgn__S Y X], <{ skip || skip || skip }>)).
+  apply ctx_red_intro with (C := fun s => s); constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S X 2 ; Asgn__S Z X], <{ Y := X || skip || skip }>)).
+  apply ctx_red_intro with (C := fun s => <{s || skip || skip}>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S X 2], <{ Y := X || Z := X || skip }>)).
+  apply ctx_red_intro with (C := fun s => <{ Y := X || s || skip}>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([], <{ Y := X || Z := X || X := 2 }>)).
+  apply ctx_red_intro with (C := fun s => <{ Y := X || Z := X || s}>); repeat constructor.
+  constructor.
+Qed.
+
+Example example_IF: interference_free (Asgn__S Z X) (Asgn__S Y X).
+Proof. splits; unfold reads_var, writes_var, contains__A; intro contra;
+         destruct contra; subst; discriminate.
+Qed.
+
+Definition final_trace__POR (f: selection_function) (s: Stmt) (t: trace__S): Prop := red_star__POR f ([], s) (t, SSkip).
+
+Example example2_t1__POR: final_trace__POR id_select example2_stmt [Asgn__S Y X ; Asgn__S Z X ; Asgn__S X 2].
+Proof.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y X ; Asgn__S Z X ; Asgn__S X 2], <{ skip || skip }>)).
+  apply ctx_red_intro with (C := fun s => s); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y X ; Asgn__S Z X ; Asgn__S X 2], <{ skip || skip || skip }>)).
+  apply ctx_red_intro with (C := fun s => s); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y X ; Asgn__S Z X], <{ skip || skip || X := 2 }>)).
+  apply ctx_red_intro with (C := fun s => <{skip || skip || s}>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y X], <{ skip || Z := X || X := 2 }>)).
+  apply ctx_red_intro with (C := fun s => <{skip || s || X := 2}>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([], <{ Y := X || Z := X || X := 2 }>)).
+  apply ctx_red_intro with (C := fun s => <{s || _ || _}>); repeat constructor.
+  constructor.
+Qed.
+
+(** Formulation of POR without selection function *)
+(* proofs are very similar *)
+
+Variant head_red__POR': relation (trace__S * Stmt) :=
+  | POR_intro': forall s s' t0 t0' t,
+      t0 ~ t0' -> head_red__S (t0, s) (t, s') ->
+      head_red__POR' (t0', s) (t, s').
+
+Definition red__POR' := context_red head_red__POR'.
+Definition red_star__POR' := clos_refl_trans_n1 _ red__POR'.
+
+Theorem correctness__POR': forall s0 t0 s t,
+    red_star__POR' (t0, s0) (t, s) ->
+    exists t', red_star__S (t0, s0) (t', s) /\ t ~ t'.
+Proof.
+  intros. dependent induction H.
+  - exists t. split; constructor.
+  - destruct y. destruct (IHclos_refl_trans_n1 s0 t0 s1 t1) as [t' [IHcomp IHequiv]];
+      try reflexivity.
+    dependent destruction H. dependent destruction H.
+    specialize (equiv_step (C s2) t2 (C s') t t'). intros.
+    destruct H3 as [t2' [equiv_step Hequiv]].
+    + solve_equivs.
+    + constructor; assumption.
+    + eexists. split.
+      * econstructor.
+        ** apply equiv_step.
+        ** assumption.
+      * assumption.
+Qed.
+
+Lemma completeness_step__POR': forall t0 t0' s0 t s,
+    t0 ~ t0' -> red__S (t0, s0) (t, s) ->
+    exists t', red__POR' (t0', s0) (t', s)
+        /\ t ~ t'.
+Proof.
+  intros. inversion H0; inversion H4; subst; eexists; split;
+    try (constructor;
+         [ econstructor; [apply H | constructor]
+         | assumption]);
+    solve_equivs.
+Qed.
+
+Theorem completeness__POR': forall t0 s0 t s,
+    red_star__S (t0, s0) (t, s) ->
+    exists t', red_star__POR' (t0, s0) (t', s)
+        /\ t ~ t'.
+Proof.
+  intros. dependent induction H.
+  - exists t. split; constructor.
+  - destruct y.
+    destruct (IHclos_refl_trans_n1 t0 s0 t1 s1) as [t' [IHcomp IHequiv]];
+      try reflexivity.
+    destruct (completeness_step__POR' t1 t' s1 t s) as [t_step [comp_step equiv_step]];
+      try assumption; solve_equivs.
+    exists t_step. split.
+    + econstructor.
+      * apply comp_step.
+      * apply IHcomp.
+    + assumption.
+Qed.
