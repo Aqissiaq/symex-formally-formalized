@@ -16,6 +16,7 @@ From SymEx Require Import Recursion.
 
 From SymEx Require Import Traces.
 
+Set Warnings "-notation-overridden,-parsing".
 From SymEx Require Import TraceSemantics.
 
 Open Scope com_scope.

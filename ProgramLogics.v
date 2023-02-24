@@ -93,3 +93,66 @@ Proof.
   unfold Box. intros. induction H.
   - destruct H0.
 Admitted.
+
+
+(** * Dynamic Logic (section 4) *)
+
+(* using Coq's propositions as (constructive) FOL over valuations *)
+(* approach like Hoare logic in PLF *)
+Definition Formula := Valuation -> Prop.
+(* Notation "V |= p" := (p V) (at level 80). *)
+
+Definition DLAnd (p1 p2: Formula): Formula := fun V => p1 V /\ p2 V.
+Definition DLExists (x: Var) (p: Formula): Formula := fun V => exists e, p (x !-> Aeval V e ; V).
+Definition DLForall (x: Var) (p: Formula): Formula := fun V => forall e, p (x !-> Aeval V e ; V).
+(* this one is a bit experimental *)
+Definition DLBox (s: Stmt) (p: Formula): Formula :=
+  fun V => forall t, red_star__C V ([], s) (t, SSkip) -> p (acc_val V t).
+Definition DLUpdate (s: sub) (p: Formula): Formula := fun V => p (Comp V s).
+Definition Sequent (G P: Formula): Formula :=
+  fun V => G V -> P V.
+
+Definition DLpc (t : trace__S): Formula := fun V => Beval V (pc t) = true.
+
+Inductive head__DLT: relation (Formula * trace__S * Stmt) :=
+  (* this "stuttering step" causes problems with the DLT-S-correspondence *)
+  (* | DLT_reduce: forall G P t sig, *)
+      (* head__DLT (Sequent G (DLUpdate sig P), t, SSkip) (Sequent (DLAnd G (DLpc t)) (DLUpdate sig P), t, SSkip) *)
+  | DLT_assign: forall G P t sig x e,
+      head__DLT (Sequent G (DLUpdate sig P), t, <{x := e}>)
+        (Sequent G (DLUpdate (x !-> Aapply sig e; sig) P), t :: Asgn__S x e, SSkip)
+  | DLT_cond_true: forall G P t sig b s1 s2,
+      head__DLT (Sequent G (DLUpdate sig P), t, <{if b {s1}{s2}}>)
+              (Sequent G (DLUpdate sig P), t :: Cond b, <{s1}>)
+  | DLT_cond_false: forall G P t sig b s1 s2,
+      head__DLT (Sequent G (DLUpdate sig P), t, <{if b {s1}{s2}}>)
+              (Sequent G (DLUpdate sig P), t :: Cond (BNot b), <{s2}>)
+  | DLT_loop_true: forall G P t sig b s,
+      head__DLT (Sequent G (DLUpdate sig P), t, <{while b {s}}>)
+              (Sequent G (DLUpdate sig P), t :: Cond b, <{s ; while b {s}}>)
+  | DLT_loop_false: forall G P t sig b s,
+      head__DLT (Sequent G (DLUpdate sig P), t, <{while b {s}}>)
+              (Sequent G (DLUpdate sig P), t :: Cond (BNot b), SSkip)
+  | DLT_skip_seq: forall P t s,
+      head__DLT (P, t, <{SSkip ; s}>) (P, t, s)
+  | DLT_skip_par_l: forall P t s,
+      head__DLT (P, t, <{SSkip || s}>) (P, t, s)
+  | DLT_skip_par_r: forall P t s,
+      head__DLT (P, t, <{s || SSkip}>) (P, t, s)
+.
+
+Definition DLT := context_red head__DLT.
+Definition Derivable__DLT := clos_refl_trans_n1 _ DLT.
+
+Lemma DL_S_correspondence: forall G P t t' sig0 s s',
+    (exists sig, DLT (Sequent G (DLUpdate sig0 P), t, s) (Sequent G (DLUpdate sig P), t', s'))
+    <-> red__S (t, s) (t', s').
+Proof.
+  intros. split; intro.
+  - destruct H as [sig H]. dependent destruction H. inversion H; subst;
+      (constructor; [constructor | assumption]).
+  - dependent destruction H. inversion H; subst; eexists;
+      (constructor; [constructor | assumption]).
+Qed.
+
+(* I do not understand the soundness and (relative) completeness formulations for DL(T) *)

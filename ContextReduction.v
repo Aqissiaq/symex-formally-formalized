@@ -83,40 +83,6 @@ Inductive head_red__S: (trace__S * Stmt) -> (trace__S * Stmt) -> Prop :=
 Definition red__S := context_red head_red__S.
 Definition red_star__S := clos_refl_trans_n1 _ red__S.
 
-Example X: Var := "x".
-Example Y: Var := "y".
-
-Example par_simple_0: red__S ([], <{ (X := 1 ; Y := 1 || Y := 2) || X := 2}>)
-                        ([Asgn__S X 1], <{ (skip ; Y := 1 || Y := 2) || X := 2 }>).
-Proof. apply ctx_red_intro with (C := fun x => <{ (x ; Y := 1 || Y := 2) || X := 2}>); repeat constructor. Qed.
-
-Example par_simple_1: red__S ([Asgn__S X 1], <{ (Y := 1 || Y := 2) || X := 2 }>)
-                        ([Asgn__S X 1 ; Asgn__S Y 2], <{ (Y := 1 || skip) || X := 2 }>).
-Proof. apply ctx_red_intro with (C := fun x => <{ (Y := 1 || x) || X := 2 }>); repeat constructor. Qed.
-
-Example par_simple_2: red__S ([Asgn__S X 1 ; Asgn__S Y 2], <{ Y := 1 || X := 2 }>)
-                        ([Asgn__S X 1 ; Asgn__S Y 2 ; Asgn__S X 2], <{ Y := 1 || skip }>).
-Proof. eapply ctx_red_intro; repeat constructor. Qed.
-
-Example par_simple_3: red__S ([Asgn__S X 1 ; Asgn__S Y 2 ; Asgn__S X 2], <{ Y := 1 }>)
-                        ([Asgn__S X 1 ; Asgn__S Y 2 ; Asgn__S X 2 ; Asgn__S Y 1], <{ skip }>) .
-Proof. eapply ctx_red_intro with (C := fun x => x); repeat constructor. Qed.
-
-Example par_simple: red_star__S ([], <{ (X := 1 ; Y := 1 || Y := 2) || X := 2}>)
-                      ([Asgn__S X 1 ; Asgn__S Y 2 ; Asgn__S X 2 ; Asgn__S Y 1], <{ skip }>).
-Proof.
-  econstructor. apply par_simple_3.
-  econstructor. apply ctx_red_intro with (C := fun x => x). apply head_red_skip_par_r__S. constructor.
-  econstructor. apply par_simple_2.
-  econstructor. apply ctx_red_intro with (C := fun x => <{ x || X := 2 }>);
-    [ apply head_red_skip_par_r__S| repeat constructor].
-  econstructor. apply par_simple_1.
-  econstructor. apply ctx_red_intro with (C := fun x => <{ x || X := 2 }>);
-    [ apply head_red_skip_seq__S | repeat constructor].
-  econstructor. apply par_simple_0.
-  constructor.
-Qed.
-
 (** Concrete Semantics *)
 
 Inductive head_red__C (V0:Valuation): (trace__C * Stmt) -> (trace__C * Stmt) -> Prop :=

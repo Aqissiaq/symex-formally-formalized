@@ -10,5 +10,8 @@ TraceSemantics.v
 Parallel.v
 ParallelTraces.v
 ContextReduction.v
-SymPaths.v
+PartialOrderReduction.v
+
+Trace_examples.v
+POR_examples.v
 #Oop.v
