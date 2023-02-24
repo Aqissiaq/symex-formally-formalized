@@ -128,6 +128,44 @@ Proof.
     all: assumption.
 Qed.
 
+Lemma IF_asgn_cond: forall x e b s,
+    interference_free__S (Asgn__S x e) (Cond b) ->
+    Bapply (x !-> Aapply s e; s) b = Bapply s b.
+Proof.
+  intros. induction b; simpl;
+    try reflexivity.
+  - rewrite IHb.
+    + reflexivity.
+    + intro y. specialize (H y). splits.
+      * destruct H as [H _]. intro contra. destruct contra.
+        apply H. split; assumption.
+      * destruct H as [_ [H _]]. intro contra. destruct contra.
+        apply H. split; assumption.
+      * destruct H as [_ [_ H]]. intro contra. destruct contra.
+        apply H. split; assumption.
+  - rewrite IHb1, IHb2.
+    + reflexivity.
+    + intro y. specialize (H y). splits.
+      * destruct H as [H _]. intro contra. destruct contra.
+        apply H. split; assumption.
+      * destruct H as [_ [H _]]. intro contra. destruct contra.
+        apply H. split.
+        ** assumption.
+        ** right. apply H1.
+      * destruct H as [_ [_ H]]. intro contra. destruct contra.
+        apply H. split; assumption.
+    + intro y. specialize (H y). splits.
+      * destruct H as [H _]. intro contra. destruct contra.
+        apply H. split; assumption.
+      * destruct H as [_ [H _]]. intro contra. destruct contra.
+        apply H. split.
+        ** assumption.
+        ** left. apply H1.
+      * destruct H as [_ [_ H]]. intro contra. destruct contra.
+        apply H. split; assumption.
+  - rewrite <- 2 IF_apply with (x' := x).
+Admitted.
+
 Lemma IF_simultaneous_subst: forall s x x' e e',
     interference_free__S (Asgn__S x e) (Asgn__S x' e') ->
     (x' !-> Aapply (x !-> Aapply s e; s) e'; x !-> Aapply s e; s) =
@@ -157,6 +195,31 @@ Proof.
   - destruct a; simpl.
     + rewrite IHt'. reflexivity.
     + assumption.
+Qed.
+
+Theorem equiv_pc: forall V0 t t', t ~ t' -> Beval V0 (pc t) = Beval V0 (pc t').
+Proof.
+  intros. induction H; try auto.
+  - rewrite IHpermute_events1. rewrite IHpermute_events2. reflexivity.
+  - induction t'.
+    + destruct e1, e2; simpl; destruct (Beval V0 (pc t));
+        try rewrite 2 andb_true_r;
+        try rewrite 2 andb_false_r;
+        try unfold Bapply_t; simpl;
+        try reflexivity.
+      (* asgn - cond *)
+      *  rewrite IF_asgn_cond; [reflexivity | assumption].
+      (* cond - asgn *)
+      * symmetry in H. rewrite IF_asgn_cond; [reflexivity | assumption].
+      (* cond - cond*)
+      * apply andb_comm.
+      * rewrite 2 andb_false_r. reflexivity.
+    + destruct a; simpl.
+      * assumption.
+      * rewrite IHt'. unfold Bapply_t.
+        rewrite (equiv_acc_subst (((t :: e1) :: e2) ++ t') (((t :: e2) :: e1) ++ t')).
+        ** reflexivity.
+        ** constructor; assumption.
 Qed.
 
 (* Framing, because it shows up in several proofs *)
@@ -255,9 +318,8 @@ Ltac solve_equivs := repeat (
 
 (* do the non-selection_function formulation *)
 (* - compose correct/completeness POR<->C *)
-(* - define POR for concrete execution *)
-(* - correct/completeness for POR__C <-> C*)
 (* - compare / commute the square *)
+
 Variant head_red__POR: relation (trace__S * Stmt) :=
   | POR_intro: forall s s' t0 t0' t,
       t0 ~ t0' -> head_red__S (t0, s) (t, s') ->
@@ -315,6 +377,39 @@ Proof.
       * apply comp_step.
       * apply IHcomp.
     + assumption.
+Qed.
+
+Theorem correctness__total: forall s s' t0 t0' t V0,
+    red_star__POR (t0, s) (t, s') ->
+    Beval V0 (pc t) = true ->
+    is_abstraction V0 t0' t0 ->
+    exists t', red_star__C V0 (t0', s) (t', s')
+        /\ is_abstraction V0 t' t.
+Proof.
+  intros.
+  destruct (correctness__POR _ _ _ _ H) as [ts [comp__S equiv__S]].
+  destruct (correctness _ _ _ _ t0' V0 comp__S) as [tc [comp__C Habs]].
+    - rewrite <- (equiv_pc V0 t ts); assumption.
+    - destruct H1. symmetry. assumption.
+    - exists tc. splits; try assumption.
+      + symmetry. rewrite equiv_acc_subst with (t' := ts); assumption.
+Qed.
+
+Theorem completeness__total : forall s s' t0 t t0' V0,
+    red_star__C V0 (t0, s) (t, s') ->
+    is_abstraction V0 t0 t0' ->
+    exists t', red_star__POR (t0', s) (t', s')
+          /\ is_abstraction V0 t t'.
+Proof.
+  intros.
+  destruct (completeness _ _ _ _ t0' V0 H H0) as [ts [comp__S [Hpc Habs]]].
+  destruct (completeness__POR _ _ _ _ comp__S) as [t__POR [comp__POR Hequiv]].
+  exists t__POR. splits.
+  + assumption.
+  + rewrite <- (equiv_pc V0 ts _); assumption.
+  + rewrite equiv_acc_subst with (t' := ts).
+    * assumption.
+    * symmetry. assumption.
 Qed.
 
 (** Concrete POR *)
