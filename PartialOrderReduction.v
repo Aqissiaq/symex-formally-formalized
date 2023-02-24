@@ -21,6 +21,7 @@ Open Scope trace_scope.
 
 Ltac splits := repeat (try split).
 
+(** Symbolic POR *)
 Fixpoint contains__A (e:Aexpr) (x:Var) : Prop :=
   match e with
   | AConst _ => False
@@ -49,31 +50,31 @@ Definition writes_var (s:trace_step__S) (x:Var) : Prop :=
   | Cond b => False
   end.
 
-Definition interference_free: relation trace_step__S :=
+Definition interference_free__S: relation trace_step__S :=
   fun s1 s2 =>
     forall x,
       ~ (reads_var s1 x /\ writes_var s2 x) /\
       ~ (writes_var s1 x /\ reads_var s2 x) /\
       ~ (writes_var s1 x /\ writes_var s2 x).
 
-Global Instance sym_interference_free : Symmetric interference_free.
+Global Instance sym_interference_free__S : Symmetric interference_free__S.
 Proof.
-  unfold interference_free. intros s1 s2 H x. specialize (H x). splits.
+  unfold interference_free__S. intros s1 s2 H x. specialize (H x). splits.
   - destruct H as [_ [contra _]]. intro. destruct H. apply contra. splits; assumption.
   - destruct H as [contra [_ _]]. intro. destruct H. apply contra. splits; assumption.
   - destruct H as [_ [_ contra]]. intro. destruct H. apply contra. splits; assumption.
 Qed.
 
-Lemma interference_free_different_var: forall x x' e e',
-    interference_free (Asgn__S x e) (Asgn__S x' e') -> x <> x'.
+Lemma interference_free__S_different_var: forall x x' e e',
+    interference_free__S (Asgn__S x e) (Asgn__S x' e') -> x <> x'.
 Proof.
   intros. intro contra. subst.
   specialize (H x'). destruct H as [_ [_ H2]].
   simpl in H2. apply H2. split; reflexivity.
 Qed.
 
-Lemma interference_free_different_expr: forall x x' e x0,
-    interference_free (Asgn__S x e) (Asgn__S x' (AVar x0)) -> x <> x0.
+Lemma interference_free__S_different_expr: forall x x' e x0,
+    interference_free__S (Asgn__S x e) (Asgn__S x' (AVar x0)) -> x <> x0.
 Proof.
   intros. intro contra. subst.
   specialize (H x0). destruct H as [_ [H1 _]].
@@ -81,8 +82,8 @@ Proof.
 Qed.
 
 Lemma IF_add_monotone: forall x x' e e1 e2,
-    interference_free (Asgn__S x e) (Asgn__S x' <{e1 + e2}>) ->
-    interference_free (Asgn__S x e) (Asgn__S x' e1) /\ interference_free (Asgn__S x e) (Asgn__S x' e2).
+    interference_free__S (Asgn__S x e) (Asgn__S x' <{e1 + e2}>) ->
+    interference_free__S (Asgn__S x e) (Asgn__S x' e1) /\ interference_free__S (Asgn__S x e) (Asgn__S x' e2).
 Proof.
   intros. split.
   - intro y. specialize (H y). splits.
@@ -116,23 +117,23 @@ Proof.
 Qed.
 
 Lemma IF_apply: forall s x x' e e',
-    interference_free (Asgn__S x e) (Asgn__S x' e') ->
+    interference_free__S (Asgn__S x e) (Asgn__S x' e') ->
     (Aapply s e') = (Aapply (x !-> Aapply s e; s) e').
 Proof.
   induction e'; intro IF.
   - reflexivity.
-  - symmetry. apply update_neq. eapply interference_free_different_expr. apply IF.
+  - symmetry. apply update_neq. eapply interference_free__S_different_expr. apply IF.
   - destruct (IF_add_monotone _ _ _ _ _ IF). simpl. rewrite IHe'1, IHe'2.
     reflexivity.
     all: assumption.
 Qed.
 
 Lemma IF_simultaneous_subst: forall s x x' e e',
-    interference_free (Asgn__S x e) (Asgn__S x' e') ->
+    interference_free__S (Asgn__S x e) (Asgn__S x' e') ->
     (x' !-> Aapply (x !-> Aapply s e; s) e'; x !-> Aapply s e; s) =
     (x !-> Aapply (x' !-> Aapply s e'; s) e; x' !-> Aapply s e'; s).
 Proof.
-  intros. specialize (interference_free_different_var _ _ _ _ H). intro.
+  intros. specialize (interference_free__S_different_var _ _ _ _ H). intro.
   rewrite update_comm.
   replace (Aapply (x !-> Aapply s e; s) e') with (Aapply s e').
   replace (Aapply (x' !-> Aapply s e'; s) e) with (Aapply s e).
@@ -142,39 +143,13 @@ Proof.
   intro. subst. apply H0. reflexivity.
 Qed.
 
-Reserved Notation " t '~' t' " (at level 40).
-Inductive path_equiv: relation trace__S :=
-| pe_refl: forall t, t ~ t
-| pe_sym: forall t t', t ~ t' -> t' ~ t
-| pe_trans: forall t1 t2 t3, t1 ~ t2 -> t2 ~ t3 -> t1 ~ t3
-| pe_interference_free: forall t t' e1 e2,
-    interference_free e1 e2 ->
-    ((((t :: e1) :: e2)) ++ t') ~ ((((t :: e2) :: e1)) ++ t')
-  where " t '~' t' " := (path_equiv t t').
-
-Global Instance refl_path_eq: Reflexive path_equiv.
-Proof. intro. apply pe_refl. Qed.
-
-Global Instance sym_path_eq: Symmetric path_equiv.
-Proof. intro. apply pe_sym. Qed.
-
-Global Instance trans_path_eq: Transitive path_equiv.
-Proof. intro. apply pe_trans. Qed.
-
-Lemma path_equiv_extend: forall t t' a,
-    t ~ t' -> (t :: a) ~ (t' :: a).
-Proof.
-  intros. induction H.
-  - reflexivity.
-  - symmetry. assumption.
-  - transitivity (t2::a); assumption.
-  - rewrite app_comm_cons. apply pe_interference_free. assumption.
-Qed.
+Definition path_equiv__S: relation trace__S := permute_events interference_free__S.
+Notation " t '~' t' " := (path_equiv__S t t') (at level 40).
 
 (* Seems like it will be useful *)
 Theorem equiv_acc_subst: forall t t', t ~ t' -> acc_subst id_sub t = acc_subst id_sub t'.
 Proof.
-  intros. induction H; try auto. rewrite IHpath_equiv1. assumption.
+  intros. induction H; try auto. rewrite IHpermute_events1. assumption.
   (* the interesting case*)
   induction t'.
   - destruct e1, e2; simpl; try reflexivity.
@@ -334,6 +309,125 @@ Proof.
     destruct (IHclos_refl_trans_n1 t0 s0 t1 s1) as [t' [IHcomp IHequiv]];
       try reflexivity.
     destruct (completeness_step__POR t1 t' s1 t s) as [t_step [comp_step equiv_step]];
+      try assumption; solve_equivs.
+    exists t_step. split.
+    + econstructor.
+      * apply comp_step.
+      * apply IHcomp.
+    + assumption.
+Qed.
+
+(** Concrete POR *)
+Definition interference_free__C: relation (Var * Val) :=
+  fun e1 e2 => fst e1 <> fst e2.
+
+Definition path_equiv__C: relation trace__C := permute_events interference_free__C.
+Notation " t '≃' t' " := (path_equiv__C t t') (at level 40).
+
+Theorem equiv_acc_val: forall V0 t t', t ≃ t' -> acc_val V0 t = acc_val V0 t'.
+Proof.
+  intros. induction H; try auto. rewrite IHpermute_events1. assumption.
+  (* the interesting case*)
+  induction t'.
+  - destruct e1, e2; simpl; try reflexivity.
+    apply update_comm. unfold interference_free__C in H.
+    simpl in H. apply not_eq_sym. assumption.
+  - destruct a; simpl.
+    + rewrite IHt'. reflexivity.
+Qed.
+
+Lemma equiv_step__C: forall V0 s t1 s' t1' t2,
+    t1 ≃ t2 -> red__C V0 (t1, s) (t1', s') ->
+    exists t2', red__C V0 (t2, s) (t2', s') /\ t1' ≃ t2'.
+Proof.
+  intros. inversion H0; inversion H4; subst;
+    (* the skip cases *)
+    try (eexists; split;
+         [ constructor;
+           [constructor | assumption]
+         | assumption]);
+    (* the conditional cases *)
+    try (eexists; split;
+         [ constructor;
+           [ replace (Beval_t V0 t1' b) with (Beval_t V0 t2 b);
+             [ constructor
+             | unfold Beval_t; rewrite (equiv_acc_val V0 t1' t2);
+               [ reflexivity | assumption ]]
+           | assumption]
+         | assumption]).
+  (* assignment *)
+  eexists. split.
+  - constructor; [constructor | assumption].
+  - unfold Aeval_t. rewrite (equiv_acc_val V0 t1 t2).
+    + apply path_equiv_extend; assumption.
+    + assumption.
+Qed.
+
+Theorem equiv_star__C: forall V0 s t1 s' t1' t2,
+    t1 ≃ t2 -> red_star__C V0 (t1, s) (t1', s') ->
+    exists t2', red_star__C V0 (t2, s) (t2', s') /\ t1' ≃ t2'.
+Proof.
+  intros. dependent induction H0.
+  - exists t2. split; [constructor | assumption].
+  - destruct y. edestruct (IHclos_refl_trans_n1 s t1 s0 t) as [t2' [IHcomp IHequiv]];
+      try assumption; try reflexivity.
+    destruct (equiv_step__C _ _ _ _ _ _ IHequiv H1) as [t2_final [comp_final equiv_final]].
+    exists t2_final. split.
+    + econstructor. apply comp_final. apply IHcomp.
+    + assumption.
+Qed.
+
+Variant head_red__PORC (V: Valuation): relation (trace__C * Stmt) :=
+  | POR_intro__C: forall s s' t0 t0' t,
+      t0 ≃ t0' -> head_red__C V (t0, s) (t, s') ->
+      head_red__PORC V (t0', s) (t, s').
+
+Definition red__PORC V := context_red (head_red__PORC V).
+Definition red_star__PORC V := clos_refl_trans_n1 _ (red__PORC V).
+
+Theorem correctness__PORC: forall V0 s0 t0 s t,
+    red_star__PORC V0 (t0, s0) (t, s) ->
+    exists t', red_star__C V0 (t0, s0) (t', s) /\ t ≃ t'.
+Proof.
+  intros. dependent induction H.
+  - exists t. split; constructor.
+  - destruct y. destruct (IHclos_refl_trans_n1 s0 t0 s1 t1) as [t' [IHcomp IHequiv]];
+      try reflexivity.
+    dependent destruction H. dependent destruction H.
+    specialize (equiv_step__C V0 (C s2) t2 (C s') t t'). intros.
+    destruct H3 as [t2' [equiv_step Hequiv]].
+    + transitivity t1; assumption.
+    + constructor; assumption.
+    + eexists. split.
+      * econstructor.
+        ** apply equiv_step.
+        ** assumption.
+      * assumption.
+Qed.
+
+Lemma completeness_step__PORC: forall V0 t0 t0' s0 t s,
+    t0 ≃ t0' -> red__C V0 (t0, s0) (t, s) ->
+    exists t', red__PORC V0 (t0', s0) (t', s)
+        /\ t ≃ t'.
+Proof.
+  intros. inversion H0; inversion H4; subst; eexists; split;
+    try (constructor;
+         [ econstructor; [apply H | constructor]
+         | assumption]);
+    reflexivity.
+Qed.
+
+Theorem completeness__PORC: forall V0 t0 s0 t s,
+    red_star__C V0 (t0, s0) (t, s) ->
+    exists t', red_star__PORC V0 (t0, s0) (t', s)
+        /\ t ≃ t'.
+Proof.
+  intros. dependent induction H.
+  - exists t. split; constructor.
+  - destruct y.
+    destruct (IHclos_refl_trans_n1 t0 s0 t1 s1) as [t' [IHcomp IHequiv]];
+      try reflexivity.
+    destruct (completeness_step__PORC V0 t1 t' s1 t s) as [t_step [comp_step equiv_step]];
       try assumption; solve_equivs.
     exists t_step. split.
     + econstructor.

@@ -1,4 +1,4 @@
-From Coq Require Import String Bool Datatypes Relations Program.Equality.
+From Coq Require Import String Bool Datatypes Relations Program.Equality Classes.RelationClasses.
 From SymEx Require Import Expr Maps.
 Import BasicExpr BasicMaps.
 
@@ -98,6 +98,36 @@ Theorem peel_off {A:Type} (t:trace A) : t <> [] -> exists x t', t = [x] ++ t'.
 Proof.
   intros. destruct (not_empty_cons _ H) as [x [t' H']].
   rewrite H'. apply peel_off'.
+Qed.
+
+(* generic equivalence stuff *)
+Inductive permute_events {X: Type} (IF: relation X): relation (trace X) :=
+  | pe_refl: forall t, permute_events IF t t
+  | pe_sym: forall t t', permute_events IF t t' -> permute_events IF t' t
+  | pe_trans: forall t1 t2 t3,
+      permute_events IF t1 t2 -> permute_events IF t2 t3 -> permute_events IF t1 t3
+  | pe_interference_free: forall t t' e1 e2,
+      IF e1 e2 ->
+      permute_events IF ((((t :: e1) :: e2)) ++ t') ((((t :: e2) :: e1)) ++ t')
+.
+
+Global Instance refl_path_eq {X: Type} {r: relation X}: Reflexive (permute_events r).
+Proof. intro. apply pe_refl. Qed.
+
+Global Instance sym_path_eq {X: Type} {r: relation X}: Symmetric (permute_events r).
+Proof. intro. apply pe_sym. Qed.
+
+Global Instance trans_path_eq {X: Type} {r: relation X}: Transitive (permute_events r).
+Proof. intro. apply pe_trans. Qed.
+
+Lemma path_equiv_extend {X:Type}: forall r t t' (x: X),
+    permute_events r t t' -> permute_events r (t :: x) (t' :: x).
+Proof.
+  intros. induction H.
+  - reflexivity.
+  - symmetry. assumption.
+  - transitivity (t2::x); assumption.
+  - rewrite 2 app_comm_cons. apply pe_interference_free. assumption.
 Qed.
 
 Module TraceSemantics.

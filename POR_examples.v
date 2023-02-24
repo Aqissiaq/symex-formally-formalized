@@ -170,7 +170,7 @@ Proof.
   constructor.
 Qed.
 
-Example example_IF: interference_free (Asgn__S Z X) (Asgn__S Y X).
+Example example_IF: interference_free__S (Asgn__S Z X) (Asgn__S Y X).
 Proof. splits; unfold reads_var, writes_var, contains__A; intro contra;
          destruct contra; subst; discriminate.
 Qed.
