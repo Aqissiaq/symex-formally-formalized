@@ -530,3 +530,48 @@ Proof.
       * apply IHcomp.
     + assumption.
 Qed.
+
+(** Relationship between PORC and POR *)
+Lemma equiv_is_abstraction: forall V0 ts ts' tc tc',
+    ts ~ ts' -> tc ≃ tc' -> is_abstraction V0 tc ts -> is_abstraction V0 tc' ts'.
+Proof.
+  intros. destruct H1. split.
+  - rewrite <- (equiv_pc V0 ts ts'); assumption.
+  - rewrite <- (equiv_acc_subst ts ts');
+      [rewrite <- (equiv_acc_val V0 tc tc') |]; assumption.
+Qed.
+
+Theorem POR_completeness: forall V0 s s' t0 t0' t,
+    red_star__PORC V0 (t0, s) (t, s') ->
+    is_abstraction V0 t0 t0' ->
+    exists t', red_star__POR (t0', s) (t', s')
+        /\ is_abstraction V0 t t'.
+Proof.
+  intros.
+  destruct (correctness__PORC V0 _ _ _ _ H) as [tc [Hcomp__C Hequiv]].
+  destruct (completeness__total _ _ _ _ _ V0 Hcomp__C H0) as [t__POR [Hcomp__POR Habs]].
+  exists t__POR. split.
+  + assumption.
+  + apply (equiv_is_abstraction V0 t__POR t__POR tc t).
+    * reflexivity.
+    * symmetry; assumption.
+    * assumption.
+Qed.
+
+Theorem POR_correctness: forall V0 s s' t0 t0' t,
+    red_star__POR (t0, s) (t, s') ->
+    Beval V0 (pc t) = true ->
+    is_abstraction V0 t0' t0 ->
+    exists t', red_star__PORC V0 (t0', s) (t', s')
+        /\ is_abstraction V0 t' t.
+Proof.
+  intros.
+  destruct (correctness__total _ _ _ t0' _ V0 H H0 H1) as [tc [Hcomp__C Habs]].
+  destruct (completeness__PORC V0 _ _ _ _ Hcomp__C) as [t__PORC [Hcomp__PORC Hequiv]].
+  exists t__PORC. split.
+  + assumption.
+  + apply (equiv_is_abstraction V0 t t tc t__PORC).
+    * reflexivity.
+    * assumption.
+    * assumption.
+Qed.

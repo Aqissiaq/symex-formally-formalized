@@ -113,10 +113,11 @@ Qed.
 Theorem correctness_step : forall s s' t0 t t0' V0,
     red__S (t0, s) (t, s') ->
     Beval V0 (pc t) = true ->
-    acc_val V0 t0' = Comp V0 (acc_subst id_sub t0) ->
+    is_abstraction V0 t0' t0 ->
     exists t', red__C V0 (t0', s) (t', s') /\ acc_val V0 t' = Comp V0 (acc_subst id_sub t).
 Proof.
-  intros. dependent destruction H. dependent induction H;
+  intros. destruct H1 as [_ H2]. symmetry in H2.
+  dependent destruction H. dependent induction H;
     (* the skips*)
     try (exists t0'; splits; [constructor | assumption | assumption]).
   - eexists. splits.
@@ -162,15 +163,16 @@ Qed.
 Theorem correctness : forall s s' t0 t t0' V0,
     red_star__S (t0, s) (t, s') ->
     Beval V0 (pc t) = true ->
-    acc_val V0 t0' = Comp V0 (acc_subst id_sub t0) ->
+    is_abstraction V0 t0' t0 ->
     exists t', red_star__C V0 (t0', s) (t', s') /\ acc_val V0 t' = Comp V0 (acc_subst id_sub t).
 Proof.
-  intros. dependent induction H.
+  intros. dependent induction H. destruct H1 as [_ H2]. symmetry in H2.
   - eexists. splits. apply rtn1_refl. assumption.
   - destruct y. remember (pc_monotone_step V0 _ _ _ _ H H1).
     edestruct IHclos_refl_trans_n1 as [t' [IHcomp IHabs]];
       try reflexivity; try assumption.
-    destruct (correctness_step _ _ _ _ t' V0 H H1 IHabs) as [t_step [Hstep Habs_step]].
+    destruct (correctness_step _ _ _ _ t' V0 H H1) as [t_step [Hstep Habs_step]].
+    split; [| symmetry]; assumption.
     eexists. splits.
     + econstructor. apply Hstep. apply IHcomp.
     + assumption.
