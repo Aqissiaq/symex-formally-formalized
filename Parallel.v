@@ -30,6 +30,20 @@ Inductive Stmt : Type :=
 | SWhile (b: Bexpr) (s: Stmt)
 | SSkip.
 
+Inductive is_context: (Stmt -> Stmt) -> Prop :=
+| is_context_hole: is_context (fun x => x)
+| is_context_seq: forall s C,
+    is_context C -> is_context (fun x => SSeq (C x) s)
+| is_context_par_left: forall s C,
+    is_context C -> is_context (fun x => SPar (C x) s)
+| is_context_par_right: forall s C,
+    is_context C -> is_context (fun x => SPar s (C x))
+.
+
+Lemma context_comp: forall C C', is_context C -> is_context C' -> is_context (fun s => C (C' s)).
+Proof. intros. induction H; induction H0; constructor; assumption. Qed.
+
+
 Notation "'skip'" := SSkip (in custom com at level 80) : com_scope.
 Notation "x := y"  :=
          (SAsgn x y)

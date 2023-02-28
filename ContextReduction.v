@@ -23,28 +23,13 @@ Ltac splits := repeat (try split).
 
 (** Generalized context unfolding *)
 (** idea from: https://xavierleroy.org/cdf-mech-sem/CDF.FUN.html *)
-Inductive is_context: (Stmt -> Stmt) -> Prop :=
-| is_context_hole: is_context (fun x => x)
-| is_context_seq: forall s C,
-    is_context C -> is_context (fun x => SSeq (C x) s)
-| is_context_par_left: forall s C,
-    is_context C -> is_context (fun x => SPar (C x) s)
-| is_context_par_right: forall s C,
-    is_context C -> is_context (fun x => SPar s (C x))
-.
-
-Inductive context_red {X:Type} (head_red: relation (X * Stmt)): (X * Stmt) -> (X * Stmt) -> Prop :=
-| ctx_red_intro: forall C t t' s s',
-    head_red (t, s) (t', s') -> is_context C ->
-    context_red head_red (t, C s) (t', C s')
-.
-
-(* properties of contexts *)
-Lemma context_comp: forall C C', is_context C -> is_context C' -> is_context (fun s => C (C' s)).
-Proof. intros. induction H; induction H0; constructor; assumption. Qed.
+Inductive context_red {X S:Type} (context: (S -> S) -> Prop) (head_red: relation (X * S)): relation (X * S) :=
+| ctx_red_intro: forall C x x' s s',
+    head_red (x, s) (x', s') -> context C ->
+    context_red context head_red (x, C s) (x', C s').
 
 Lemma under_C {X: Type} (r: relation (X * Stmt)): forall C s s' t t',
-    context_red r (t, s) (t', s') -> is_context C -> context_red r (t, C s) (t', C s').
+    context_red is_context r (t, s) (t', s') -> is_context C -> context_red is_context r (t, C s) (t', C s').
 Proof.
   intros. dependent destruction H. apply ctx_red_intro with (C := fun s => C (C0 s)).
   - assumption.
@@ -80,7 +65,7 @@ Inductive head_red__S: (trace__S * Stmt) -> (trace__S * Stmt) -> Prop :=
     head_red__S (t, <{s || skip }>) (t, s)
 .
 
-Definition red__S := context_red head_red__S.
+Definition red__S := context_red is_context head_red__S.
 Definition red_star__S := clos_refl_trans_n1 _ red__S.
 
 (** Concrete Semantics *)
@@ -101,7 +86,7 @@ Inductive head_red__C (V0:Valuation): (trace__C * Stmt) -> (trace__C * Stmt) -> 
     head_red__C V0 (t, <{s || skip }>) (t, s)
 .
 
-Definition red__C (V0:Valuation) := context_red (head_red__C V0).
+Definition red__C (V0:Valuation) := context_red is_context (head_red__C V0).
 Definition red_star__C (V0:Valuation) := clos_refl_trans_n1 _ (red__C V0).
 
 (** Properties *)

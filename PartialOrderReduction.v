@@ -325,7 +325,7 @@ Variant head_red__POR: relation (trace__S * Stmt) :=
       t0 ~ t0' -> head_red__S (t0, s) (t, s') ->
       head_red__POR (t0', s) (t, s').
 
-Definition red__POR := context_red head_red__POR.
+Definition red__POR := context_red is_context head_red__POR.
 Definition red_star__POR := clos_refl_trans_n1 _ red__POR.
 
 Theorem correctness__POR: forall s0 t0 s t,
@@ -390,7 +390,7 @@ Proof.
   destruct (correctness__POR _ _ _ _ H) as [ts [comp__S equiv__S]].
   destruct (correctness _ _ _ _ t0' V0 comp__S) as [tc [comp__C Habs]].
     - rewrite <- (equiv_pc V0 t ts); assumption.
-    - destruct H1. symmetry. assumption.
+    - assumption.
     - exists tc. splits; try assumption.
       + symmetry. rewrite equiv_acc_subst with (t' := ts); assumption.
 Qed.
@@ -477,7 +477,7 @@ Variant head_red__PORC (V: Valuation): relation (trace__C * Stmt) :=
       t0 ≃ t0' -> head_red__C V (t0, s) (t, s') ->
       head_red__PORC V (t0', s) (t, s').
 
-Definition red__PORC V := context_red (head_red__PORC V).
+Definition red__PORC V := context_red is_context (head_red__PORC V).
 Definition red_star__PORC V := clos_refl_trans_n1 _ (red__PORC V).
 
 Theorem correctness__PORC: forall V0 s0 t0 s t,
