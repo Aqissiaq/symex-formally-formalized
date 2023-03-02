@@ -90,9 +90,15 @@ Definition red__C (V0:Valuation) := context_red is_context (head_red__C V0).
 Definition red_star__C (V0:Valuation) := clos_refl_trans_n1 _ (red__C V0).
 
 (** Properties *)
-Lemma pc_monotone_step : forall V0 s1 s2 t1 t2, red__S (t1, s1) (t2, s2) -> Beval V0 (pc t2) = true -> Beval V0 (pc t1) = true.
+Lemma pc_monotone: forall V t x,
+    Beval V (pc (t :: x)) = true -> Beval V (pc t) = true.
+Proof. intros. destruct x; simpl in H; try (apply andb_true_iff in H; destruct H); assumption. Qed.
+
+Lemma pc_monotone_step : forall V0 s1 s2 t1 t2,
+    red__S (t1, s1) (t2, s2) -> Beval V0 (pc t2) = true -> Beval V0 (pc t1) = true.
 Proof. intros. inversion H. inversion H4; subst;
-         simpl in H0; try (apply andb_true_iff in H0; destruct H0); assumption.
+         try (simpl in H0; assumption);
+         try(eapply pc_monotone; apply H0).
 Qed.
 
 Theorem correctness_step : forall s s' t0 t t0' V0,

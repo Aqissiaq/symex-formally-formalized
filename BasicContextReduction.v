@@ -12,38 +12,9 @@ Import BasicExpr.
 From SymEx Require Import Maps.
 Import BasicMaps.
 
+From SymEx Require Import Parallel.
+
 From SymEx Require Import ContextReduction.
-
-Open Scope com_scope.
-
-Inductive Stmt : Type :=
-| SAsgn (x:string) (e:Aexpr)
-| SSeq (s1 s2:Stmt)
-| SIf (b:Bexpr) (s1 s2:Stmt)
-| SWhile (b:Bexpr) (s:Stmt)
-| SSkip.
-
-Notation "x := y"  :=
-         (SAsgn x y)
-            (in custom com at level 0, x constr at level 0,
-             y at level 85, no associativity) : com_scope.
-Notation "x ; y" :=
-         (SSeq x y)
-           (in custom com at level 90, right associativity) : com_scope.
-Notation "'if' x '{' y '}' '{' z '}'" :=
-         (SIf x y z)
-           (in custom com at level 89, x at level 99,
-            y at level 99, z at level 99) : com_scope.
-Notation "'while' x '{' y '}'" :=
-         (SWhile x y)
-           (in custom com at level 89, x at level 99,
-               y at level 99) : com_scope.
-Notation "'skip'" := SSkip (in custom com at level 80) : com_scope.
-
-Inductive is_context: (Stmt -> Stmt) -> Prop :=
-| is_context_hole: is_context (fun x => x)
-| is_context_seq: forall s C,
-    is_context C -> is_context (fun x => SSeq (C x) s).
 
 Inductive head_red__S: relation (sub * Bexpr * Stmt) :=
 | SAsgn_step: forall x e sig phi,
@@ -58,6 +29,10 @@ Inductive head_red__S: relation (sub * Bexpr * Stmt) :=
     head_red__S (sig, phi, <{while b {s}}>) (sig, BAnd phi (BNot (Bapply sig b)), SSkip)
 | SSeq_skip: forall s sig phi,
     head_red__S (sig, phi, <{skip ; s}>) (sig, phi, s)
+| SPar_left_skip: forall s sig phi,
+    head_red__S (sig, phi, <{skip || s}>) (sig, phi, s)
+| SPar_right_skip: forall s sig phi,
+    head_red__S (sig, phi, <{s || skip}>) (sig, phi, s)
 .
 
 Definition Sstep: relation (sub * Bexpr * Stmt) := context_red is_context head_red__S.
@@ -83,6 +58,10 @@ Inductive head_red__C: relation (Valuation * Stmt) :=
     head_red__C (V, <{while b {s}}>) (V, SSkip)
 | CSeq_skip: forall s V,
     head_red__C (V, <{skip ; s}>) (V, s)
+| CPar_left_skip: forall s V,
+    head_red__C (V, <{skip || s}>) (V, s)
+| CPar_right_skip: forall s V,
+    head_red__C (V, <{s || skip}>) (V, s)
 .
 
 Definition Cstep: relation (Valuation * Stmt) := context_red is_context head_red__C.
@@ -99,8 +78,9 @@ Proof.
   intros. dependent induction H.
   - rewrite comp_id. constructor.
   - dependent destruction H. destruct x as [sig0 phi0]. dependent destruction H; econstructor;
-    try (simpl in H2; apply andb_true_iff in H2; destruct H2; try (apply negb_true_iff in H2);
-      rewrite <- comp_subB in H2).
+      (* simplify path condition for use in the concrete step *)
+      try (simpl in H2; apply andb_true_iff in H2; destruct H2; try (apply negb_true_iff in H2);
+        rewrite <- comp_subB in H2).
     + constructor.
       * rewrite asgn_sound. constructor.
       * assumption.
@@ -123,6 +103,14 @@ Proof.
     + eapply IHclos_refl_trans_n1; try reflexivity; assumption.
     + constructor.
       * apply CSeq_skip.
+      * assumption.
+    + eapply IHclos_refl_trans_n1; try reflexivity; assumption.
+    + constructor.
+      * apply CPar_left_skip.
+      * assumption.
+    + eapply IHclos_refl_trans_n1; try reflexivity; assumption.
+    + constructor.
+      * apply CPar_right_skip.
       * assumption.
     + eapply IHclos_refl_trans_n1; try reflexivity; assumption.
 Qed.
@@ -194,5 +182,17 @@ Proof.
       exists sig. exists phi. splits; try assumption.
       econstructor.
       * constructor; [apply SSeq_skip | assumption].
+      *  apply IHcomp.
+    + destruct (IHclos_refl_trans_n1 s (C <{skip || s'0}>) V0 V) as [sig [phi [IHcomp [IHval IHupd]]]];
+        try reflexivity.
+      exists sig. exists phi. splits; try assumption.
+      econstructor.
+      * constructor; [apply SPar_left_skip | assumption].
+      *  apply IHcomp.
+    + destruct (IHclos_refl_trans_n1 s (C <{s'0 || skip}>) V0 V) as [sig [phi [IHcomp [IHval IHupd]]]];
+        try reflexivity.
+      exists sig. exists phi. splits; try assumption.
+      econstructor.
+      * constructor; [apply SPar_right_skip | assumption].
       *  apply IHcomp.
 Qed.
