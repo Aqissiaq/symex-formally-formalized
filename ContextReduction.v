@@ -23,6 +23,7 @@ Ltac splits := repeat (try split).
 
 (** Generalized context unfolding *)
 (** idea from: https://xavierleroy.org/cdf-mech-sem/CDF.FUN.html *)
+(** S is on the right because the associativity makes it simpler when X is a product type*)
 Inductive context_red {X S:Type} (context: (S -> S) -> Prop) (head_red: relation (X * S)): relation (X * S) :=
 | ctx_red_intro: forall C x x' s s',
     head_red (x, s) (x', s') -> context C ->

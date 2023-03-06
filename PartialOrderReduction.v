@@ -29,6 +29,8 @@ Fixpoint contains__A (e:Aexpr) (x:Var) : Prop :=
   | <{e1 + e2}> => contains__A e1 x \/ contains__A e2 x
   end.
 
+Axiom fresh_var: forall e x, exists x', ~ (contains__A e x') /\ x <> x'.
+
 Fixpoint contains__B (e:Bexpr) (x:Var) : Prop :=
   match e with
   | BTrue => False
@@ -81,6 +83,14 @@ Proof.
   simpl in H1. apply H1. split; reflexivity.
 Qed.
 
+Lemma IF_inv: forall x x' e e', ~ (contains__A e' x) -> ~ (contains__A e x') -> x <> x' -> interference_free__S (Asgn__S x e) (Asgn__S x' e').
+Proof.
+  intros. intro y. splits.
+  - intro contra. destruct contra. unfold reads_var, writes_var in *. subst. apply H0. assumption.
+  - intro contra. destruct contra. unfold reads_var, writes_var in *. subst. apply H. assumption.
+  - intro contra. destruct contra. unfold reads_var, writes_var in *. subst. apply H1. reflexivity.
+Qed.
+
 Lemma IF_add_monotone: forall x x' e e1 e2,
     interference_free__S (Asgn__S x e) (Asgn__S x' <{e1 + e2}>) ->
     interference_free__S (Asgn__S x e) (Asgn__S x' e1) /\ interference_free__S (Asgn__S x e) (Asgn__S x' e2).
@@ -128,6 +138,7 @@ Proof.
     all: assumption.
 Qed.
 
+
 Lemma IF_asgn_cond: forall x e b s,
     interference_free__S (Asgn__S x e) (Cond b) ->
     Bapply (x !-> Aapply s e; s) b = Bapply s b.
@@ -163,8 +174,24 @@ Proof.
         ** left. apply H1.
       * destruct H as [_ [_ H]]. intro contra. destruct contra.
         apply H. split; assumption.
-  - rewrite <- 2 IF_apply with (x' := x).
-Admitted.
+  - assert (~ (contains__A a2 x)). {
+        specialize (H x). destruct H as [_ [H _]]. intro contra.
+        apply H. split.
+        - reflexivity.
+        - right. assumption.
+      }
+  assert (~ (contains__A a1 x)). {
+        specialize (H x). destruct H as [_ [H _]]. intro contra.
+        apply H. split.
+        - reflexivity.
+        - left. assumption.
+      }
+    destruct (fresh_var e x) as [x' [foo bar]].
+    erewrite <- 2 IF_apply with (x := x) (x' := x').
+    + reflexivity.
+    + apply IF_inv; assumption.
+    + apply IF_inv; assumption.
+Qed.
 
 Lemma IF_simultaneous_subst: forall s x x' e e',
     interference_free__S (Asgn__S x e) (Asgn__S x' e') ->
@@ -541,23 +568,6 @@ Proof.
       [rewrite <- (equiv_acc_val V0 tc tc') |]; assumption.
 Qed.
 
-Theorem POR_completeness: forall V0 s s' t0 t0' t,
-    red_star__PORC V0 (t0, s) (t, s') ->
-    is_abstraction V0 t0 t0' ->
-    exists t', red_star__POR (t0', s) (t', s')
-        /\ is_abstraction V0 t t'.
-Proof.
-  intros.
-  destruct (correctness__PORC V0 _ _ _ _ H) as [tc [Hcomp__C Hequiv]].
-  destruct (completeness__total _ _ _ _ _ V0 Hcomp__C H0) as [t__POR [Hcomp__POR Habs]].
-  exists t__POR. split.
-  + assumption.
-  + apply (equiv_is_abstraction V0 t__POR t__POR tc t).
-    * reflexivity.
-    * symmetry; assumption.
-    * assumption.
-Qed.
-
 Theorem POR_correctness: forall V0 s s' t0 t0' t,
     red_star__POR (t0, s) (t, s') ->
     Beval V0 (pc t) = true ->
@@ -573,5 +583,22 @@ Proof.
   + apply (equiv_is_abstraction V0 t t tc t__PORC).
     * reflexivity.
     * assumption.
+    * assumption.
+Qed.
+
+Theorem POR_completeness: forall V0 s s' t0 t0' t,
+    red_star__PORC V0 (t0, s) (t, s') ->
+    is_abstraction V0 t0 t0' ->
+    exists t', red_star__POR (t0', s) (t', s')
+        /\ is_abstraction V0 t t'.
+Proof.
+  intros.
+  destruct (correctness__PORC V0 _ _ _ _ H) as [tc [Hcomp__C Hequiv]].
+  destruct (completeness__total _ _ _ _ _ V0 Hcomp__C H0) as [t__POR [Hcomp__POR Habs]].
+  exists t__POR. split.
+  + assumption.
+  + apply (equiv_is_abstraction V0 t__POR t__POR tc t).
+    * reflexivity.
+    * symmetry; assumption.
     * assumption.
 Qed.
