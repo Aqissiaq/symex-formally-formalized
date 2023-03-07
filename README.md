@@ -29,7 +29,7 @@ The approach to syntax and transition relation semantics is based on [Programmin
 - [Parallel Traces](./ParallelTraces.v) adds a parallel composition operator to the base language with trace semantics.
 Additionally contains some preliminary results about reduction of trace sets.
     - The base language with a parallel operator is in [Parallel](./Parallel.v)
-- [Context Reduction](./ContextReduction) contains an alternative approach to syntax based on reductions in a context inspired by [Mechanized Semantics](https://github.com/xavierleroy/cdf-mech-sem)
+- [Context Reduction](./ContextReduction.v) contains an alternative approach to syntax based on reductions in a context inspired by [Mechanized Semantics](https://github.com/xavierleroy/cdf-mech-sem)
 - [Partial Order Reduction](./PartialOrderReduction.v) formalizes [partial order reduction](https://rdcu.be/c58yn) of symbolic execution in the context reduction style
   - Some examples of programs and their traces with and without POR are found in [examples](./POR_examples.v)
 - [Program Logics](./ProgramLogics.v) contains some notes on program logics for [Parallel](./Parallel.v). In particular the DL from sympaths and Einar's simple parallel logic

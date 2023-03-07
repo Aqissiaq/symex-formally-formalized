@@ -212,7 +212,7 @@ Definition path_equiv__S: relation trace__S := permute_events interference_free_
 Notation " t '~' t' " := (path_equiv__S t t') (at level 40).
 
 (* Seems like it will be useful *)
-Theorem equiv_acc_subst: forall t t', t ~ t' -> acc_subst id_sub t = acc_subst id_sub t'.
+Theorem equiv_acc_subst': forall s t t', t ~ t' -> acc_subst s t = acc_subst s t'.
 Proof.
   intros. induction H; try auto. rewrite IHpermute_events1. assumption.
   (* the interesting case*)
@@ -223,6 +223,10 @@ Proof.
     + rewrite IHt'. reflexivity.
     + assumption.
 Qed.
+
+(* but I only ever use it with id_sub*)
+Corollary equiv_acc_subst: forall t t', t ~ t' -> acc_subst id_sub t = acc_subst id_sub t'.
+Proof. apply equiv_acc_subst'. Qed.
 
 Theorem equiv_pc: forall V0 t t', t ~ t' -> Beval V0 (pc t) = Beval V0 (pc t').
 Proof.
@@ -365,12 +369,12 @@ Proof.
       try reflexivity.
     dependent destruction H. dependent destruction H.
     specialize (equiv_step (C s2) t2 (C s') t t'). intros.
-    destruct H3 as [t2' [equiv_step Hequiv]].
+    destruct H3 as [t2' [Hstep Hequiv]].
     + solve_equivs.
     + constructor; assumption.
-    + eexists. split.
+    + eexists t2'. split.
       * econstructor.
-        ** apply equiv_step.
+        ** apply Hstep.
         ** assumption.
       * assumption.
 Qed.
@@ -380,11 +384,16 @@ Lemma completeness_step__POR: forall t0 t0' s0 t s,
     exists t', red__POR (t0', s0) (t', s)
         /\ t ~ t'.
 Proof.
-  intros. inversion H0; inversion H4; subst; eexists; split;
-    try (constructor;
-         [ econstructor; [apply H | constructor]
-         | assumption]);
-    solve_equivs.
+  intros.
+  destruct (equiv_step _ _ _ _ _ H H0) as [t' [Hstep Hequiv]].
+  dependent destruction Hstep.
+  exists t'. split.
+  + eapply ctx_red_intro.
+    apply POR_intro with (t0 := t0').
+    * reflexivity.
+    * apply H1.
+    * assumption.
+  + assumption.
 Qed.
 
 Theorem completeness__POR: forall t0 s0 t s,
@@ -398,7 +407,7 @@ Proof.
     destruct (IHclos_refl_trans_n1 t0 s0 t1 s1) as [t' [IHcomp IHequiv]];
       try reflexivity.
     destruct (completeness_step__POR t1 t' s1 t s) as [t_step [comp_step equiv_step]];
-      try assumption; solve_equivs.
+      try assumption.
     exists t_step. split.
     + econstructor.
       * apply comp_step.
@@ -532,11 +541,16 @@ Lemma completeness_step__PORC: forall V0 t0 t0' s0 t s,
     exists t', red__PORC V0 (t0', s0) (t', s)
         /\ t ≃ t'.
 Proof.
-  intros. inversion H0; inversion H4; subst; eexists; split;
-    try (constructor;
-         [ econstructor; [apply H | constructor]
-         | assumption]);
-    reflexivity.
+  intros.
+  destruct (equiv_step__C _ _ _ _ _ _ H H0) as [t' [Hstep Hequiv]].
+  dependent destruction Hstep.
+  exists t'. split.
+  + eapply ctx_red_intro.
+    apply POR_intro__C with (t0 := t0').
+    * reflexivity.
+    * apply H1.
+    * assumption.
+  + assumption.
 Qed.
 
 Theorem completeness__PORC: forall V0 t0 s0 t s,
