@@ -176,66 +176,41 @@ Proof.
     all: assumption.
 Qed.
 
-Axiom fresh_var: forall e x, exists x', ~ (contains__A e x') /\ x <> x'.
+Lemma no_touch__A: forall s e x a, ~ (contains__A a x) -> Aapply (x !-> e ; s) a = Aapply s a.
+Proof.
+  induction a; intro.
+  - reflexivity.
+  - unfold contains__A in H. apply update_neq. assumption.
+  - simpl. rewrite IHa1, IHa2.
+    + reflexivity.
+    + intro. apply H. right. assumption.
+    + intro. apply H. left. assumption.
+Qed.
+
+Lemma no_touch__B: forall s e x b, ~ (contains__B b x) -> Bapply (x !-> e ; s) b = Bapply s b.
+Proof.
+  induction b; intro;
+    try reflexivity.
+  - simpl in *. rewrite IHb; [reflexivity | assumption].
+  - simpl in *. rewrite IHb1, IHb2.
+    + reflexivity.
+    + intro. apply H. right. assumption.
+    + intro. apply H. left. assumption.
+  - simpl. rewrite (no_touch__A _ _ x a1), (no_touch__A _ _ x a2).
+    + reflexivity.
+    + intro. apply H. right. assumption.
+    + intro. apply H. left. assumption.
+Qed.
 
 Lemma IF_asgn_cond: forall x e b s,
     interference_free__S (Asgn__S x e) (Cond b) ->
     Bapply (x !-> Aapply s e; s) b = Bapply s b.
 Proof.
-  intros. induction b; simpl;
-    try reflexivity.
-  - rewrite IHb.
-    + reflexivity.
-    + intro y. specialize (H y). splits.
-      * destruct H as [H _]. intro contra. destruct contra.
-        apply H. split; assumption.
-      * destruct H as [_ [H _]]. intro contra. destruct contra.
-        apply H. split; assumption.
-      * destruct H as [_ [_ H]]. intro contra. destruct contra.
-        apply H. split; assumption.
-  - rewrite IHb1, IHb2.
-    + reflexivity.
-    + intro y. specialize (H y). splits.
-      * destruct H as [H _]. intro contra. destruct contra.
-        apply H. split; assumption.
-      * destruct H as [_ [H _]]. intro contra. destruct contra.
-        apply H. split.
-        ** assumption.
-        ** right. apply H1.
-      * destruct H as [_ [_ H]]. intro contra. destruct contra.
-        apply H. split; assumption.
-    + intro y. specialize (H y). splits.
-      * destruct H as [H _]. intro contra. destruct contra.
-        apply H. split; assumption.
-      * destruct H as [_ [H _]]. intro contra. destruct contra.
-        apply H. split.
-        ** assumption.
-        ** left. apply H1.
-      * destruct H as [_ [_ H]]. intro contra. destruct contra.
-        apply H. split; assumption.
-  - assert (Ha2: ~ (contains__A a2 x)). {
-        specialize (H x). destruct H as [_ [H _]]. intro contra.
-        apply H. split.
-        - reflexivity.
-        - right. assumption.
-      }
-    assert (Ha1: ~ (contains__A a1 x)). {
-        specialize (H x). destruct H as [_ [H _]]. intro contra.
-        apply H. split.
-        - reflexivity.
-        - left. assumption.
-      }
-    destruct (fresh_var e x) as [x' [He Hx]].
-    erewrite <- 2 IF_apply with (x := x) (x' := x').
-    + reflexivity.
-    + apply IF_inv.
-      * apply Ha2.
-      * apply He.
-      * apply Hx.
-    + apply IF_inv.
-      * apply Ha1.
-      * apply He.
-      * apply Hx.
+  intros. apply no_touch__B.
+    specialize (H x). destruct H as [_ [H _]]. intro contra.
+    apply H. split.
+    - reflexivity.
+    - apply contra.
 Qed.
 
 Lemma IF_simultaneous_subst: forall s x x' e e',
