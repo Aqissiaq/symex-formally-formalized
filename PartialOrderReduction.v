@@ -29,7 +29,25 @@ Fixpoint contains__A (e:Aexpr) (x:Var) : Prop :=
   | <{e1 + e2}> => contains__A e1 x \/ contains__A e2 x
   end.
 
-Axiom fresh_var: forall e x, exists x', ~ (contains__A e x') /\ x <> x'.
+(* idk, but this seems like it might be useful *)
+Lemma contains_dec__A: forall x e, contains__A e x \/ ~ (contains__A e x).
+Proof.
+  induction e.
+  - right. auto.
+  - destruct (String.eqb_spec x x0); subst.
+    + left. reflexivity.
+    + right. unfold contains__A. assumption.
+  - destruct IHe1.
+    + left. left. assumption.
+    + destruct IHe2.
+      * left. right. assumption.
+      * right. intro. destruct H1; auto.
+Qed.
+
+Lemma contains_plus: forall e1 e2 x, ~ (contains__A <{e1 + e2}> x) -> ~ (contains__A e1 x) /\ ~ (contains__A e2 x).
+Proof.
+  intros. split; intro contra; apply H; [left | right]; assumption.
+Qed.
 
 Fixpoint contains__B (e:Bexpr) (x:Var) : Prop :=
   match e with
@@ -39,6 +57,26 @@ Fixpoint contains__B (e:Bexpr) (x:Var) : Prop :=
   | <{ b1 && b2 }> => contains__B b1 x \/ contains__B b2 x
   | <{ a1 <= a2 }> => contains__A a1 x \/ contains__A a2 x
   end.
+
+Lemma contains_dec__B: forall x e, contains__B e x \/ ~ (contains__B e x).
+Proof.
+  induction e.
+  - right; auto.
+  - right; auto.
+  - destruct IHe.
+    + left; auto.
+    + right; auto.
+  - destruct IHe1.
+    + left. left. apply H.
+    + destruct IHe2.
+      * left. right. apply H0.
+      * right. intro. destruct H1; auto.
+  - destruct (contains_dec__A x a1).
+    + left. left. apply H.
+    + destruct (contains_dec__A x a2).
+      * left. right. apply H0.
+      * right. intro. destruct H1; auto.
+Qed.
 
 Definition reads_var (s:trace_step__S) (x:Var) : Prop :=
   match s with
@@ -138,6 +176,7 @@ Proof.
     all: assumption.
 Qed.
 
+Axiom fresh_var: forall e x, exists x', ~ (contains__A e x') /\ x <> x'.
 
 Lemma IF_asgn_cond: forall x e b s,
     interference_free__S (Asgn__S x e) (Cond b) ->
@@ -174,23 +213,29 @@ Proof.
         ** left. apply H1.
       * destruct H as [_ [_ H]]. intro contra. destruct contra.
         apply H. split; assumption.
-  - assert (~ (contains__A a2 x)). {
+  - assert (Ha2: ~ (contains__A a2 x)). {
         specialize (H x). destruct H as [_ [H _]]. intro contra.
         apply H. split.
         - reflexivity.
         - right. assumption.
       }
-  assert (~ (contains__A a1 x)). {
+    assert (Ha1: ~ (contains__A a1 x)). {
         specialize (H x). destruct H as [_ [H _]]. intro contra.
         apply H. split.
         - reflexivity.
         - left. assumption.
       }
-    destruct (fresh_var e x) as [x' [foo bar]].
+    destruct (fresh_var e x) as [x' [He Hx]].
     erewrite <- 2 IF_apply with (x := x) (x' := x').
     + reflexivity.
-    + apply IF_inv; assumption.
-    + apply IF_inv; assumption.
+    + apply IF_inv.
+      * apply Ha2.
+      * apply He.
+      * apply Hx.
+    + apply IF_inv.
+      * apply Ha1.
+      * apply He.
+      * apply Hx.
 Qed.
 
 Lemma IF_simultaneous_subst: forall s x x' e e',
@@ -215,7 +260,7 @@ Notation " t '~' t' " := (path_equiv__S t t') (at level 40).
 Theorem equiv_acc_subst': forall s t t', t ~ t' -> acc_subst s t = acc_subst s t'.
 Proof.
   intros. induction H; try auto. rewrite IHpermute_events1. assumption.
-  (* the interesting case*)
+  (* the interesting case: (t :: e1 :: e2) ++ t' *)
   induction t'.
   - destruct e1, e2; simpl; try reflexivity.
     apply IF_simultaneous_subst. assumption.
@@ -331,26 +376,6 @@ Proof.
     + assumption.
 Qed.
 
-(* I feel like this is just auto with some hints, but that didn't work as expected *)
-(* maybe revisit *)
-Ltac solve_equivs := repeat (
-      match goal with
-      | _ : _ |- ?t ~ ?t => reflexivity
-      | H : ?t ~ ?t' |- ?t' ~ ?t => symmetry
-      | H1 : ?t1 ~ ?t2, H2 : ?t2 ~ ?t3 |- ?t1 ~ ?t3 => transitivity t2
-      | H1 : ?t2 ~ ?t1, H2 : ?t2 ~ ?t3 |- ?t1 ~ ?t3 => symmetry in H1
-      | _ : _ |- (?t :: _) ~ (?t' :: _) => apply path_equiv_extend
-      (* dealing with selection functions*)
-      (* | _ : _ |- ?t' ~ select ?f ?t => unfold select; destruct (f t); simpl *)
-      (* | _ : _ |- select ?f ?t ~ ?t' => symmetry *)
-      | H : ?T |- ?T => apply H
-      | _ => fail
-      end).
-
-(* do the non-selection_function formulation *)
-(* - compose correct/completeness POR<->C *)
-(* - compare / commute the square *)
-
 Variant head_red__POR: relation (trace__S * Stmt) :=
   | POR_intro: forall s s' t0 t0' t,
       t0 ~ t0' -> head_red__S (t0, s) (t, s') ->
@@ -370,7 +395,7 @@ Proof.
     dependent destruction H. dependent destruction H.
     specialize (equiv_step (C s2) t2 (C s') t t'). intros.
     destruct H3 as [t2' [Hstep Hequiv]].
-    + solve_equivs.
+    + transitivity t1; assumption.
     + constructor; assumption.
     + eexists t2'. split.
       * econstructor.
@@ -564,7 +589,7 @@ Proof.
     destruct (IHclos_refl_trans_n1 t0 s0 t1 s1) as [t' [IHcomp IHequiv]];
       try reflexivity.
     destruct (completeness_step__PORC V0 t1 t' s1 t s) as [t_step [comp_step equiv_step]];
-      try assumption; solve_equivs.
+      try assumption.
     exists t_step. split.
     + econstructor.
       * apply comp_step.
