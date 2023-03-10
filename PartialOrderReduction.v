@@ -2,7 +2,6 @@
 (* No thread identifiers, idk how that complicates things yet*)
 
 From Coq Require Import String Bool Datatypes Relations Program.Equality Classes.RelationClasses.
-From Coq Require Import Logic.FunctionalExtensionality. (* for equality of substitutions *)
 
 From SymEx Require Import Expr.
 Import BasicExpr.
@@ -42,11 +41,6 @@ Proof.
     + destruct IHe2.
       * left. right. assumption.
       * right. intro. destruct H1; auto.
-Qed.
-
-Lemma contains_plus: forall e1 e2 x, ~ (contains__A <{e1 + e2}> x) -> ~ (contains__A e1 x) /\ ~ (contains__A e2 x).
-Proof.
-  intros. split; intro contra; apply H; [left | right]; assumption.
 Qed.
 
 Fixpoint contains__B (e:Bexpr) (x:Var) : Prop :=

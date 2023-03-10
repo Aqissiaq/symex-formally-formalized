@@ -1,7 +1,6 @@
 (** * Semantics by Head reductions in context *)
 
-From Coq Require Import String Bool Datatypes Relations Program.Equality.
-From Coq Require Import Classes.RelationClasses.
+From Coq Require Import String Bool Datatypes Relations Program.Equality Classes.RelationClasses.
 From Coq Require Import Logic.FunctionalExtensionality. (* for equality of substitutions *)
 
 From SymEx Require Import Expr.
@@ -199,11 +198,10 @@ Proof.
       * simpl. assumption.
 Qed.
 
-Theorem bisimulation: forall V s s' t0 t0',
+Corollary bisimulation: forall V s s' t0 t0',
     is_abstraction V t0 t0' ->
     (exists t, red__C V (t0, s) (t, s')) <-> (exists t, red__S (t0', s) (t, s') /\ Beval V (pc t) = true).
 (* furthermore the symbolic trace abstracts the concrete one *)
-(* formulation *)
 Proof.
   split.
   - intros H1. destruct H1 as [t Hcomp].
