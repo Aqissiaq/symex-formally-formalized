@@ -73,7 +73,7 @@ Definition red_star__S := clos_refl_trans_n1 _ red__S.
 
 Inductive head_red__C (V0:Valuation): (trace__C * Stmt) -> (trace__C * Stmt) -> Prop :=
 | head_red_asgn__C: forall t x e,
-    head_red__C V0 (t, <{ x := e }>) (t :: (x, Aeval_t V0 t e), SSkip)
+    head_red__C V0 (t, <{ x := e }>) (t :: (x, e), SSkip)
 | head_red_cond__C: forall t b s1 s2,
     head_red__C V0 (t, <{ if b {s1} {s2} }>) (t, if (Beval_t V0 t b) then s1 else s2)
 | head_red_loop__C: forall t b s,
@@ -152,24 +152,6 @@ Proof.
     + simpl. assumption.
 Qed.
 
-Theorem correctness : forall s s' t0 t t0' V0,
-    red_star__S (t0, s) (t, s') ->
-    Beval V0 (pc t) = true ->
-    is_abstraction V0 t0' t0 ->
-    exists t', red_star__C V0 (t0', s) (t', s') /\ acc_val V0 t' = Comp V0 (acc_subst id_sub t).
-Proof.
-  intros. dependent induction H. destruct H1 as [_ H2]. symmetry in H2.
-  - eexists. splits. apply rtn1_refl. assumption.
-  - destruct y. remember (pc_monotone_step V0 _ _ _ _ H H1).
-    edestruct IHclos_refl_trans_n1 as [t' [IHcomp IHabs]];
-      try reflexivity; try assumption.
-    destruct (correctness_step _ _ _ _ t' V0 H H1) as [t_step [Hstep Habs_step]].
-    split; [| symmetry]; assumption.
-    eexists. splits.
-    + econstructor. apply Hstep. apply IHcomp.
-    + assumption.
-Qed.
-
 Lemma completeness_step : forall s s' t0 t t0' V0,
     red__C V0 (t0, s) (t, s') ->
     is_abstraction V0 t0 t0' ->
@@ -215,6 +197,56 @@ Proof.
         ** unfold Bapply_t. rewrite <- comp_subB. rewrite H1. apply negb_true_iff. assumption.
         ** assumption.
       * simpl. assumption.
+Qed.
+
+Theorem bisimulation: forall V s s' t0 t0',
+    is_abstraction V t0 t0' ->
+    (exists t, red__C V (t0, s) (t, s')) <-> (exists t, red__S (t0', s) (t, s') /\ Beval V (pc t) = true).
+(* furthermore the symbolic trace abstracts the concrete one *)
+(* formulation *)
+Proof.
+  split.
+  - intros H1. destruct H1 as [t Hcomp].
+    destruct (completeness_step _ _ _ _ _ _ Hcomp H) as [t' [Scomp [Hpc _]]].
+    exists t'. split; assumption.
+  - intros H1. destruct H1 as [t [Hcomp Hpc]].
+    destruct (correctness_step _ _ _ _ _ _ Hcomp Hpc H) as [t' [Ccomp _]].
+    exists t'. assumption.
+Qed.
+
+(* the following does *not* hold because of different contexts *)
+(* Lemma bisim_not_abstracts: forall V s s' t0 t0' t t', *)
+(*     is_abstraction V t0 t0' -> *)
+(*     red__C V (t0, s) (t, s') -> *)
+(*     red__S (t0', s) (t', s') -> *)
+(*     is_abstraction V t t'. *)
+Example red_left: red__C (_ !-> 0) ([], <{X := 1 || X := 2}>) ([(X, AConst 1)], <{ skip || X := 2 }>).
+Proof. apply ctx_red_intro with (C := fun s => <{ s || X := 2 }>); repeat constructor. Qed.
+
+Example red_right: red__S ([], <{X := 1 || X := 2}>) ([Asgn__S X 2], <{ X := 1 || skip }>).
+Proof. apply ctx_red_intro with (C := fun s => <{ X := 1 || s }>); repeat constructor. Qed.
+
+Example not_abstracts: ~ (is_abstraction (_ !-> 0) [(X, AConst 1)] [Asgn__S X 2]).
+Proof. unfold is_abstraction. unfold Comp. simpl. intro contra. destruct contra as [_ maps].
+       apply equal_f with (x := X) in maps. discriminate.
+Qed.
+
+Theorem correctness : forall s s' t0 t t0' V0,
+    red_star__S (t0, s) (t, s') ->
+    Beval V0 (pc t) = true ->
+    is_abstraction V0 t0' t0 ->
+    exists t', red_star__C V0 (t0', s) (t', s') /\ acc_val V0 t' = Comp V0 (acc_subst id_sub t).
+Proof.
+  intros. dependent induction H. destruct H1 as [_ H2]. symmetry in H2.
+  - eexists. splits. apply rtn1_refl. assumption.
+  - destruct y. remember (pc_monotone_step V0 _ _ _ _ H H1).
+    edestruct IHclos_refl_trans_n1 as [t' [IHcomp IHabs]];
+      try reflexivity; try assumption.
+    destruct (correctness_step _ _ _ _ t' V0 H H1) as [t_step [Hstep Habs_step]].
+    split; [| symmetry]; assumption.
+    eexists. splits.
+    + econstructor. apply Hstep. apply IHcomp.
+    + assumption.
 Qed.
 
 Theorem completeness : forall s s' t0 t t0' V0,

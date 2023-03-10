@@ -207,10 +207,8 @@ Lemma IF_asgn_cond: forall x e b s,
     Bapply (x !-> Aapply s e; s) b = Bapply s b.
 Proof.
   intros. apply no_touch__B.
-    specialize (H x). destruct H as [_ [H _]]. intro contra.
-    apply H. split.
-    - reflexivity.
-    - apply contra.
+  specialize (H x). destruct H as [_ [H _]]. intro contra.
+  apply H. split; [reflexivity | assumption].
 Qed.
 
 Lemma IF_simultaneous_subst: forall s x x' e e',
@@ -449,20 +447,34 @@ Proof.
 Qed.
 
 (** Concrete POR *)
-Definition interference_free__C: relation (Var * Val) :=
-  fun e1 e2 => fst e1 <> fst e2.
+Definition interference_free__C: relation (Var * Aexpr) :=
+  fun p1 p2 => let (x1, e1) := p1 in
+            let (x2, e2) := p2 in
+            x1 <> x2 /\ ~ (contains__A e1 x2) /\ ~ (contains__A e2 x1).
 
 Definition path_equiv__C: relation trace__C := permute_events interference_free__C.
 Notation " t '≃' t' " := (path_equiv__C t t') (at level 40).
+
+Lemma no_touch_Aeval: forall V e x a, ~ (contains__A a x) -> Aeval (x !-> e ; V) a = Aeval V a.
+Proof.
+  induction a; intro.
+  - reflexivity.
+  - unfold contains__A in H. apply update_neq. assumption.
+  - simpl. rewrite IHa1, IHa2.
+    + reflexivity.
+    + intro. apply H. right. assumption.
+    + intro. apply H. left. assumption.
+Qed.
 
 Theorem equiv_acc_val: forall V0 t t', t ≃ t' -> acc_val V0 t = acc_val V0 t'.
 Proof.
   intros. induction H; try auto. rewrite IHpermute_events1. assumption.
   (* the interesting case*)
   induction t'.
-  - destruct e1, e2; simpl; try reflexivity.
-    apply update_comm. unfold interference_free__C in H.
-    simpl in H. apply not_eq_sym. assumption.
+  - destruct e1, e2; simpl; try reflexivity. destruct H as [H1 [H2 H3]].
+    apply not_eq_sym in H1.
+    rewrite update_comm. rewrite 2 no_touch_Aeval. reflexivity.
+    all: assumption.
   - destruct a; simpl.
     + rewrite IHt'. reflexivity.
 Qed.
@@ -489,9 +501,7 @@ Proof.
   (* assignment *)
   eexists. split.
   - constructor; [constructor | assumption].
-  - unfold Aeval_t. rewrite (equiv_acc_val V0 t1 t2).
-    + apply path_equiv_extend; assumption.
-    + assumption.
+  - apply path_equiv_extend; assumption.
 Qed.
 
 Theorem equiv_star__C: forall V0 s t1 s' t1' t2,

@@ -162,14 +162,13 @@ Module TraceSemantics.
     end.
 
   (** Concrete *)
-  Definition Val : Type := nat.
-  Definition trace__C := trace (Var * Val).
+  Definition trace__C := trace (Var * Aexpr).
 
   Fixpoint acc_val (V0:Valuation) (t:trace__C) : Valuation :=
     match t with
     | [] => V0
-    | t :: (x, v) => let V := acc_val V0 t in
-                   (x !-> v ; V)
+    | t :: (x, e) => let V := acc_val V0 t in
+                   (x !-> Aeval V e ; V)
     end.
 
   Definition Aeval_t (V0:Valuation) (t:trace__C) (e:Aexpr) : nat :=
