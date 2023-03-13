@@ -213,7 +213,7 @@ Proof.
 Qed.
 
 (* the following does *not* hold because of different contexts *)
-(* Lemma bisim_not_abstracts: forall V s s' t0 t0' t t', *)
+(* Lemma bisim_abstracts: forall V s s' t0 t0' t t', *)
 (*     is_abstraction V t0 t0' -> *)
 (*     red__C V (t0, s) (t, s') -> *)
 (*     red__S (t0', s) (t', s') -> *)

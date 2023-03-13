@@ -351,6 +351,7 @@ Variant head_red__POR: relation (trace__S * Stmt) :=
 Definition red__POR := context_red is_context head_red__POR.
 Definition red_star__POR := clos_refl_trans_n1 _ red__POR.
 
+(** actually both correctness and completeness here only relies on equiv_step aka prefix closedness! *)
 Theorem correctness__POR: forall s0 t0 s t,
     red_star__POR (t0, s0) (t, s) ->
     exists t', red_star__S (t0, s0) (t', s) /\ t ~ t'.
@@ -407,6 +408,7 @@ Proof.
     + assumption.
 Qed.
 
+(** put TOTAL relies on both equiv_pc and equiv_acC_subst *)
 Theorem correctness__total: forall s s' t0 t0' t V0,
     red_star__POR (t0, s) (t, s') ->
     Beval V0 (pc t) = true ->
@@ -577,6 +579,8 @@ Proof.
 Qed.
 
 (** Relationship between PORC and POR *)
+(* PORC-POR relies on all 3: equiv_pc, equiv_acc_subst and equiv_acc_val*)
+(* and equiv_extends actually, through the PORC results*)
 Lemma equiv_is_abstraction: forall V0 ts ts' tc tc',
     ts ~ ts' -> tc ≃ tc' -> is_abstraction V0 tc ts -> is_abstraction V0 tc' ts'.
 Proof.

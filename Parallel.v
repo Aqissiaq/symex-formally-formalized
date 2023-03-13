@@ -43,7 +43,6 @@ Inductive is_context: (Stmt -> Stmt) -> Prop :=
 Lemma context_comp: forall C C', is_context C -> is_context C' -> is_context (fun s => C (C' s)).
 Proof. intros. induction H; induction H0; constructor; assumption. Qed.
 
-
 Notation "'skip'" := SSkip (in custom com at level 80) : com_scope.
 Notation "x := y"  :=
          (SAsgn x y)
