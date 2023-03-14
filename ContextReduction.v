@@ -200,33 +200,14 @@ Qed.
 
 Corollary bisimulation: forall V s s' t0 t0',
     is_abstraction V t0 t0' ->
-    (exists t, red__C V (t0, s) (t, s')) <-> (exists t, red__S (t0', s) (t, s') /\ Beval V (pc t) = true).
-(* furthermore the symbolic trace abstracts the concrete one *)
+    (forall t, red__C V (t0, s) (t, s') ->
+          exists t', (red__S (t0', s) (t', s')) /\ is_abstraction V t t')
+    /\ (forall t, red__S (t0', s) (t, s') /\ Beval V (pc t) = true ->
+            (exists t', red__C V (t0, s) (t', s') /\ acc_val V t' = Comp V (acc_subst id_sub t))).
 Proof.
   split.
-  - intros H1. destruct H1 as [t Hcomp].
-    destruct (completeness_step _ _ _ _ _ _ Hcomp H) as [t' [Scomp [Hpc _]]].
-    exists t'. split; assumption.
-  - intros H1. destruct H1 as [t [Hcomp Hpc]].
-    destruct (correctness_step _ _ _ _ _ _ Hcomp Hpc H) as [t' [Ccomp _]].
-    exists t'. assumption.
-Qed.
-
-(* the following does *not* hold because of different contexts *)
-(* Lemma bisim_abstracts: forall V s s' t0 t0' t t', *)
-(*     is_abstraction V t0 t0' -> *)
-(*     red__C V (t0, s) (t, s') -> *)
-(*     red__S (t0', s) (t', s') -> *)
-(*     is_abstraction V t t'. *)
-Example red_left: red__C (_ !-> 0) ([], <{X := 1 || X := 2}>) ([(X, AConst 1)], <{ skip || X := 2 }>).
-Proof. apply ctx_red_intro with (C := fun s => <{ s || X := 2 }>); repeat constructor. Qed.
-
-Example red_right: red__S ([], <{X := 1 || X := 2}>) ([Asgn__S X 2], <{ X := 1 || skip }>).
-Proof. apply ctx_red_intro with (C := fun s => <{ X := 1 || s }>); repeat constructor. Qed.
-
-Example not_abstracts: ~ (is_abstraction (_ !-> 0) [(X, AConst 1)] [Asgn__S X 2]).
-Proof. unfold is_abstraction. unfold Comp. simpl. intro contra. destruct contra as [_ maps].
-       apply equal_f with (x := X) in maps. discriminate.
+  - intros. apply completeness_step with (t0 := t0); assumption.
+  - intros. destruct H0. apply correctness_step with (t0 := t0'); assumption.
 Qed.
 
 Theorem correctness : forall s s' t0 t t0' V0,
@@ -240,11 +221,13 @@ Proof.
   - destruct y. remember (pc_monotone_step V0 _ _ _ _ H H1).
     edestruct IHclos_refl_trans_n1 as [t' [IHcomp IHabs]];
       try reflexivity; try assumption.
-    destruct (correctness_step _ _ _ _ t' V0 H H1) as [t_step [Hstep Habs_step]].
-    split; [| symmetry]; assumption.
-    eexists. splits.
-    + econstructor. apply Hstep. apply IHcomp.
-    + assumption.
+    destruct (bisimulation V0 s0 s' t' t1) as [_ bisim_correct].
+    + split; [| symmetry]; assumption.
+    + destruct (bisim_correct t) as [t_step [Hstep Habs_step]].
+      * split; assumption.
+      * eexists. splits.
+        ** econstructor. apply Hstep. apply IHcomp.
+        ** assumption.
 Qed.
 
 Theorem completeness : forall s s' t0 t t0' V0,
@@ -257,10 +240,11 @@ Proof.
   - eexists. splits; destruct H0; try (apply rtn1_refl); assumption.
   - destruct y. edestruct IHclos_refl_trans_n1 as [t' [IHcomp [IHpc IHabs]]];
       try reflexivity; try assumption.
-    destruct (completeness_step _ _ _ _ t' _ H) as [t_step [Hstep [Hpc Habs]]]; try assumption.
-    split; assumption.
-    eexists. splits.
-    + econstructor. apply Hstep. apply IHcomp.
-    + apply Hpc.
-    + apply Habs.
+    destruct (bisimulation V0 s0 s' t1 t') as [bisim_complete _].
+    + split; assumption.
+    + destruct (bisim_complete t) as [t_step [Hstep [Hpc Habs]]]; try assumption.
+      eexists. splits.
+      * econstructor. apply Hstep. apply IHcomp.
+      * apply Hpc.
+      * apply Habs.
 Qed.
