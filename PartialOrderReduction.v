@@ -369,16 +369,12 @@ Proof.
 Qed.
 
 Theorem equiv_acc_val: forall V0 t t', t ≃ t' -> acc_val V0 t = acc_val V0 t'.
-Proof.
-  intros. induction H; try auto. rewrite IHpermute_events1. assumption.
-  (* the interesting case*)
-  induction t'.
-  - destruct e1, e2; simpl; try reflexivity. destruct H as [H1 [H2 H3]].
-    apply not_eq_sym in H1.
-    rewrite update_comm. rewrite 2 no_touch_Aeval. reflexivity.
-    all: assumption.
-  - destruct a; simpl.
-    + rewrite IHt'. reflexivity.
+Proof. apply equiv_acc_val_generic. unfold sim_subst__C. intros.
+       destruct H as [H1 [H2 H3]].
+       rewrite (update_comm _ _ _ _ _ H1).
+       rewrite (no_touch_Aeval _ _ _ _ H2).
+       rewrite (no_touch_Aeval _ _ _ _ H3).
+       reflexivity.
 Qed.
 
 Lemma equiv_step__C: forall V0 s t1 s' t1' t2,

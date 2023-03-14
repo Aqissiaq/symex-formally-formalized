@@ -236,4 +236,22 @@ Module TraceSemantics.
           rewrite 2 andb_true_iff. rewrite IHt'. reflexivity.
   Qed.
 
+  Definition sim_subst__C (r: relation (Var * Aexpr)) :=
+    forall V x x' e e',
+        r (x, e) (x', e') ->
+        (x' !-> Aeval (x !-> Aeval V e ; V) e'; x !-> Aeval V e; V)
+      = (x !-> Aeval (x' !-> Aeval V e'; V) e; x' !-> Aeval V e'; V).
+
+  Theorem equiv_acc_val_generic (r: relation (Var * Aexpr)) (sim_subst: sim_subst__C r):
+    forall V t t', permute_events r t t' -> acc_val V t = acc_val V t'.
+  Proof.
+    intros. induction H;
+      try auto.
+    - rewrite IHpermute_events1. apply IHpermute_events2.
+    - induction t'.
+      + destruct e1, e2; simpl.
+        apply sim_subst. apply H.
+      + destruct a; simpl. rewrite IHt'. reflexivity.
+  Qed.
+
 End TraceSemantics.
