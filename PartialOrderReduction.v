@@ -165,46 +165,11 @@ Qed.
 Definition path_equiv__S: relation trace__S := permute_events interference_free__S.
 Notation " t '~' t' " := (path_equiv__S t t') (at level 40).
 
-Theorem equiv_acc_subst': forall s t t', t ~ t' -> acc_subst s t = acc_subst s t'.
-Proof.
-  intros. induction H; try auto. rewrite IHpermute_events1. assumption.
-  (* the interesting case: (t :: e1 :: e2) ++ t' *)
-  induction t'.
-  - destruct e1, e2; simpl; try reflexivity.
-    apply IF_simultaneous_subst. assumption.
-  - destruct a; simpl.
-    + rewrite IHt'. reflexivity.
-    + assumption.
-Qed.
+Theorem equiv_acc_subst: forall s t t', t ~ t' -> acc_subst s t = acc_subst s t'.
+Proof. apply (equiv_acc_subst_generic _ IF_simultaneous_subst). Qed.
 
-(* but I only ever use it with id_sub*)
-Corollary equiv_acc_subst: forall t t', t ~ t' -> acc_subst id_sub t = acc_subst id_sub t'.
-Proof. apply equiv_acc_subst'. Qed.
-
-Theorem equiv_pc: forall V0 t t', t ~ t' -> Beval V0 (pc t) = Beval V0 (pc t').
-Proof.
-  intros. induction H; try auto.
-  - rewrite IHpermute_events1. rewrite IHpermute_events2. reflexivity.
-  - induction t'.
-    + destruct e1, e2; simpl; destruct (Beval V0 (pc t));
-        try rewrite 2 andb_true_r;
-        try rewrite 2 andb_false_r;
-        try unfold Bapply_t; simpl;
-        try reflexivity.
-      (* asgn - cond *)
-      *  rewrite IF_asgn_cond; [reflexivity | assumption].
-      (* cond - asgn *)
-      * symmetry in H. rewrite IF_asgn_cond; [reflexivity | assumption].
-      (* cond - cond*)
-      * apply andb_comm.
-      * rewrite 2 andb_false_r. reflexivity.
-    + destruct a; simpl.
-      * assumption.
-      * rewrite IHt'. unfold Bapply_t.
-        rewrite (equiv_acc_subst (((t :: e1) :: e2) ++ t') (((t :: e2) :: e1) ++ t')).
-        ** reflexivity.
-        ** constructor; assumption.
-Qed.
+Theorem equiv_pc: forall V t t', t ~ t' -> Beval V (pc t) = true <-> Beval V (pc t') = true.
+Proof. apply (equiv_pc_generic _ _ IF_simultaneous_subst IF_asgn_cond). Qed.
 
 (* Framing, because it shows up in several proofs *)
 (*
@@ -527,7 +492,7 @@ Lemma equiv_is_abstraction: forall V0 ts ts' tc tc',
 Proof.
   intros. destruct H1. split.
   - rewrite <- (equiv_pc V0 ts ts'); assumption.
-  - rewrite <- (equiv_acc_subst ts ts');
+  - rewrite <- (equiv_acc_subst _ ts ts');
       [rewrite <- (equiv_acc_val V0 tc tc') |]; assumption.
 Qed.
 

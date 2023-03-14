@@ -69,13 +69,6 @@ Proof.
     discriminate.
 Qed.
 
-(* these should definitely be provable *)
-Axiom app_eq_app : forall {X:Type} (x1 x2 y1 y2: trace X),
-  x1++x2 = y1++y2 ->
-  exists l, (x1 = y1++l /\ y2 = l++x2) \/ (y1 = x1++l /\ x2 = l++y2).
-
-Axiom unit_unique : forall {A:Type} (x y:trace A), x = x ++ y -> y = [].
-
 Theorem cons_neq {A:Type} (x:trace A) (y:A) : x::y <> x.
 Proof. induction x.
        - apply cons_not_empty.
@@ -186,5 +179,61 @@ Module TraceSemantics.
     | xs :: Asgn__S x e => Apply_t s xs :: Asgn__S x (Aapply s e)
     | xs :: Cond e => Apply_t s xs :: Cond (Bapply s e)
     end.
+
+  (* Path Equivalence Conditions *)
+  Definition sim_subst (r: relation trace_step__S) :=
+    forall s x x' e e',
+        r (Asgn__S x e) (Asgn__S x' e') ->
+        (x' !-> Aapply (x !-> Aapply s e; s) e'; x !-> Aapply s e; s)
+      = (x !-> Aapply (x' !-> Aapply s e'; s) e; x' !-> Aapply s e'; s).
+
+  Definition subst_bapply (r: relation trace_step__S) :=
+    forall x e b s, r (Asgn__S x e) (Cond b) ->
+      Bapply (x !-> Aapply s e; s) b = Bapply s b.
+
+  (* if r allows simultaneous substitution, then equiv_acc_subst *)
+  Theorem equiv_acc_subst_generic (r: relation trace_step__S) (sim_subst: sim_subst r):
+    forall s t t',
+      permute_events r t t' -> acc_subst s t = acc_subst s t'.
+  Proof.
+    intros s t t' equiv. induction equiv;
+      try auto.
+    - rewrite IHequiv1. apply IHequiv2.
+    - induction t'.
+      + destruct e1, e2;
+          try reflexivity.
+        apply sim_subst. apply H.
+      + destruct a; simpl;
+          rewrite IHt'; auto.
+  Qed.
+
+  (* if r additionally respects subst_bapply we get equiv_pc*)
+  Theorem equiv_pc_generic (r: relation trace_step__S) (sym: Symmetric r) (sim_subst: sim_subst r) (subst_bapply: subst_bapply r):
+    forall V t t', permute_events r t t' -> Beval V (pc t) = true <-> Beval V (pc t') = true.
+  Proof.
+    intros.
+    induction H.
+    - reflexivity.
+    - symmetry. apply IHpermute_events.
+    - rewrite IHpermute_events1. apply IHpermute_events2.
+    - induction t'.
+      + destruct e1, e2.
+        * reflexivity.
+        * simpl. unfold Bapply_t. simpl.
+          rewrite (subst_bapply _ _ _ _ H). reflexivity.
+        * simpl. unfold Bapply_t. simpl. symmetry in H.
+          rewrite (subst_bapply _ _ _ _ H). reflexivity.
+        * simpl. unfold Bapply_t. simpl.
+          rewrite 2 andb_assoc.
+          rewrite (andb_comm (Beval V (Bapply (acc_subst id_sub t) b0))).
+          reflexivity.
+      + destruct a; simpl.
+        * apply IHt'.
+        * unfold Bapply_t.
+          assert (IHequiv: permute_events r (((t :: e1) :: e2) ++ t') (((t :: e2) :: e1) ++ t'))
+            by (apply pe_interference_free; assumption).
+          rewrite (equiv_acc_subst_generic r sim_subst _ _ _ IHequiv).
+          rewrite 2 andb_true_iff. rewrite IHt'. reflexivity.
+  Qed.
 
 End TraceSemantics.
