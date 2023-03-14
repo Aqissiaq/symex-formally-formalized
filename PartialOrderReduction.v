@@ -99,77 +99,6 @@ Proof.
   - destruct H as [_ [_ contra]]. intro. destruct H. apply contra. splits; assumption.
 Qed.
 
-Lemma interference_free__S_different_var: forall x x' e e',
-    interference_free__S (Asgn__S x e) (Asgn__S x' e') -> x <> x'.
-Proof.
-  intros. intro contra. subst.
-  specialize (H x'). destruct H as [_ [_ H2]].
-  simpl in H2. apply H2. split; reflexivity.
-Qed.
-
-Lemma interference_free__S_different_expr: forall x x' e x0,
-    interference_free__S (Asgn__S x e) (Asgn__S x' (AVar x0)) -> x <> x0.
-Proof.
-  intros. intro contra. subst.
-  specialize (H x0). destruct H as [_ [H1 _]].
-  simpl in H1. apply H1. split; reflexivity.
-Qed.
-
-Lemma IF_inv: forall x x' e e', ~ (contains__A e' x) -> ~ (contains__A e x') -> x <> x' -> interference_free__S (Asgn__S x e) (Asgn__S x' e').
-Proof.
-  intros. intro y. splits.
-  - intro contra. destruct contra. unfold reads_var, writes_var in *. subst. apply H0. assumption.
-  - intro contra. destruct contra. unfold reads_var, writes_var in *. subst. apply H. assumption.
-  - intro contra. destruct contra. unfold reads_var, writes_var in *. subst. apply H1. reflexivity.
-Qed.
-
-Lemma IF_add_monotone: forall x x' e e1 e2,
-    interference_free__S (Asgn__S x e) (Asgn__S x' <{e1 + e2}>) ->
-    interference_free__S (Asgn__S x e) (Asgn__S x' e1) /\ interference_free__S (Asgn__S x e) (Asgn__S x' e2).
-Proof.
-  intros. split.
-  - intro y. specialize (H y). splits.
-    + destruct H as [H _]. intro contra. destruct contra.
-      apply H. split.
-      * assumption.
-      * inversion H1. reflexivity.
-    + destruct H as [_ [H _]]. intro contra. destruct contra.
-      apply H. split.
-      * assumption.
-      * unfold reads_var in *. destruct e2;
-          simpl; left; assumption.
-    + destruct H as [_ [_ H]]. intro contra. destruct contra.
-      apply H. split.
-      * assumption.
-      * inversion H1. reflexivity.
-  - intro y. specialize (H y). splits.
-    + destruct H as [H _]. intro contra. destruct contra.
-      apply H. split.
-      * assumption.
-      * inversion H1. reflexivity.
-    + destruct H as [_ [H _]]. intro contra. destruct contra.
-      apply H. split.
-      * assumption.
-      * unfold reads_var in *. destruct e1;
-          simpl; right; assumption.
-    + destruct H as [_ [_ H]]. intro contra. destruct contra.
-      apply H. split.
-      * assumption.
-      * inversion H1. reflexivity.
-Qed.
-
-Lemma IF_apply: forall s x x' e e',
-    interference_free__S (Asgn__S x e) (Asgn__S x' e') ->
-    (Aapply s e') = (Aapply (x !-> Aapply s e; s) e').
-Proof.
-  induction e'; intro IF.
-  - reflexivity.
-  - symmetry. apply update_neq. eapply interference_free__S_different_expr. apply IF.
-  - destruct (IF_add_monotone _ _ _ _ _ IF). simpl. rewrite IHe'1, IHe'2.
-    reflexivity.
-    all: assumption.
-Qed.
-
 Lemma no_touch__A: forall s e x a, ~ (contains__A a x) -> Aapply (x !-> e ; s) a = Aapply s a.
 Proof.
   induction a; intro.
@@ -196,6 +125,18 @@ Proof.
     + intro. apply H. left. assumption.
 Qed.
 
+Lemma IF_apply: forall s x x' e e',
+    interference_free__S (Asgn__S x e) (Asgn__S x' e') ->
+    Aapply (x !-> Aapply s e; s) e' = Aapply s e'.
+Proof.
+  intros.
+  assert (no_contains: ~ (contains__A e' x)). {
+    destruct (H x) as [_ [Hcontains _]]. intro contra. apply Hcontains.
+    split; [reflexivity | assumption].
+  }
+  apply (no_touch__A _ _ _ _ no_contains).
+Qed.
+
 Lemma IF_asgn_cond: forall x e b s,
     interference_free__S (Asgn__S x e) (Cond b) ->
     Bapply (x !-> Aapply s e; s) b = Bapply s b.
@@ -210,20 +151,20 @@ Lemma IF_simultaneous_subst: forall s x x' e e',
     (x' !-> Aapply (x !-> Aapply s e; s) e'; x !-> Aapply s e; s) =
     (x !-> Aapply (x' !-> Aapply s e'; s) e; x' !-> Aapply s e'; s).
 Proof.
-  intros. specialize (interference_free__S_different_var _ _ _ _ H). intro.
-  rewrite update_comm.
-  replace (Aapply (x !-> Aapply s e; s) e') with (Aapply s e').
-  replace (Aapply (x' !-> Aapply s e'; s) e) with (Aapply s e).
+  intros.
+  assert (different_vars: x <> x'). {
+    destruct (H x) as [_ [_ Hw]]. intro. apply Hw. subst. split; reflexivity.
+  }
+  assert (H': interference_free__S (Asgn__S x' e') (Asgn__S x e)) by (symmetry; assumption).
+  rewrite (IF_apply _ _ _ _ _ H).
+  rewrite (IF_apply _ _ _ _ _ H').
+  rewrite (update_comm _ _ _ _ _ different_vars).
   reflexivity.
-  eapply IF_apply. symmetry in H. apply H.
-  eapply IF_apply. apply H.
-  intro. subst. apply H0. reflexivity.
 Qed.
 
 Definition path_equiv__S: relation trace__S := permute_events interference_free__S.
 Notation " t '~' t' " := (path_equiv__S t t') (at level 40).
 
-(* Seems like it will be useful *)
 Theorem equiv_acc_subst': forall s t t', t ~ t' -> acc_subst s t = acc_subst s t'.
 Proof.
   intros. induction H; try auto. rewrite IHpermute_events1. assumption.
@@ -329,7 +270,7 @@ Proof.
     assumption.
 Qed.
 
-Theorem equiv_star: forall s t1 s' t1' t2,
+Corollary equiv_star: forall s t1 s' t1' t2,
     t1 ~ t2 -> red_star__S (t1, s) (t1', s') ->
     exists t2', red_star__S (t2, s) (t2', s') /\ t1' ~ t2'.
 Proof.
@@ -408,7 +349,7 @@ Proof.
     + assumption.
 Qed.
 
-(** put TOTAL relies on both equiv_pc and equiv_acC_subst *)
+(** but TOTAL relies on both equiv_pc and equiv_acc_subst *)
 Theorem correctness__total: forall s s' t0 t0' t V0,
     red_star__POR (t0, s) (t, s') ->
     Beval V0 (pc t) = true ->
@@ -451,7 +392,7 @@ Definition interference_free__C: relation (Var * Aexpr) :=
 Definition path_equiv__C: relation trace__C := permute_events interference_free__C.
 Notation " t '≃' t' " := (path_equiv__C t t') (at level 40).
 
-Lemma no_touch_Aeval: forall V e x a, ~ (contains__A a x) -> Aeval (x !-> e ; V) a = Aeval V a.
+Lemma no_touch_Aeval: forall V v x a, ~ (contains__A a x) -> Aeval (x !-> v ; V) a = Aeval V a.
 Proof.
   induction a; intro.
   - reflexivity.
@@ -500,7 +441,7 @@ Proof.
   - apply path_equiv_extend; assumption.
 Qed.
 
-Theorem equiv_star__C: forall V0 s t1 s' t1' t2,
+Corollary equiv_star__C: forall V0 s t1 s' t1' t2,
     t1 ≃ t2 -> red_star__C V0 (t1, s) (t1', s') ->
     exists t2', red_star__C V0 (t2, s) (t2', s') /\ t1' ≃ t2'.
 Proof.
