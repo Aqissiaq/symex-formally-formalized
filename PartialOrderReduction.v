@@ -162,6 +162,11 @@ Proof.
   reflexivity.
 Qed.
 
+Example independent_inc: forall s,
+    (X !-> Aapply (X !-> Aapply s <{X + 1}>; s) <{X + 1}>; X !-> Aapply s <{X + 1}>; s) =
+    (X !-> Aapply (X !-> Aapply s <{X + 1}>; s) <{X + 1}>; X !-> Aapply s <{X + 1}>; s).
+Proof. intro. reflexivity. Qed.
+
 Definition path_equiv__S: relation trace__S := permute_events interference_free__S.
 Notation " t '~' t' " := (path_equiv__S t t') (at level 40).
 
@@ -257,8 +262,29 @@ Variant head_red__POR: relation (trace__S * Stmt) :=
 Definition red__POR := context_red is_context head_red__POR.
 Definition red_star__POR := clos_refl_trans_n1 _ red__POR.
 
-(** actually both correctness and completeness here only relies on equiv_step aka prefix closedness! *)
-Theorem correctness__POR: forall s0 t0 s t,
+(** actually bisimulation only relies on equiv_step aka prefix closedness! *)
+Theorem bisim__POR: forall s s' t0 t0',
+    t0 ~ t0' ->
+    (forall t, red__POR (t0, s) (t, s') -> exists t', red__S (t0', s) (t', s') /\ t ~ t')
+  /\ (forall t, red__S (t0, s) (t, s') -> exists t', red__POR (t0', s) (t', s') /\ t ~ t').
+Proof.
+  split; intros.
+  - dependent destruction H0. dependent destruction H0.
+    destruct (equiv_step (C s0) t1 (C s'0) t t0') as [t2' [Hstep Hequiv]];
+      [transitivity t0 | constructor |]; try assumption.
+    exists t2'. split; assumption.
+  - destruct (equiv_step s t0 s' t t0' H H0) as [t2' [Hstep Hequiv]].
+    dependent destruction Hstep.
+    exists t2'. split.
+    + eapply ctx_red_intro.
+      * apply POR_intro with (t0 := t0').
+        ** reflexivity.
+        ** assumption.
+      * assumption.
+    + assumption.
+Qed.
+
+Corollary correctness__POR: forall s0 t0 s t,
     red_star__POR (t0, s0) (t, s) ->
     exists t', red_star__S (t0, s0) (t', s) /\ t ~ t'.
 Proof.
@@ -266,36 +292,16 @@ Proof.
   - exists t. split; constructor.
   - destruct y. destruct (IHclos_refl_trans_n1 s0 t0 s1 t1) as [t' [IHcomp IHequiv]];
       try reflexivity.
-    dependent destruction H. dependent destruction H.
-    specialize (equiv_step (C s2) t2 (C s') t t'). intros.
-    destruct H3 as [t2' [Hstep Hequiv]].
-    + transitivity t1; assumption.
-    + constructor; assumption.
-    + eexists t2'. split.
-      * econstructor.
-        ** apply Hstep.
-        ** assumption.
-      * assumption.
+    destruct (bisim__POR s1 s t1 t' IHequiv) as [bisim_correct _].
+    destruct (bisim_correct t H) as [t0' [bisim_step bisim_equiv]].
+    exists t0'. split.
+    + econstructor.
+      * apply bisim_step.
+      * apply IHcomp.
+    + apply bisim_equiv.
 Qed.
 
-Lemma completeness_step__POR: forall t0 t0' s0 t s,
-    t0 ~ t0' -> red__S (t0, s0) (t, s) ->
-    exists t', red__POR (t0', s0) (t', s)
-        /\ t ~ t'.
-Proof.
-  intros.
-  destruct (equiv_step _ _ _ _ _ H H0) as [t' [Hstep Hequiv]].
-  dependent destruction Hstep.
-  exists t'. split.
-  + eapply ctx_red_intro.
-    apply POR_intro with (t0 := t0').
-    * reflexivity.
-    * apply H1.
-    * assumption.
-  + assumption.
-Qed.
-
-Theorem completeness__POR: forall t0 s0 t s,
+Corollary completeness__POR: forall t0 s0 t s,
     red_star__S (t0, s0) (t, s) ->
     exists t', red_star__POR (t0, s0) (t', s)
         /\ t ~ t'.
@@ -305,47 +311,13 @@ Proof.
   - destruct y.
     destruct (IHclos_refl_trans_n1 t0 s0 t1 s1) as [t' [IHcomp IHequiv]];
       try reflexivity.
-    destruct (completeness_step__POR t1 t' s1 t s) as [t_step [comp_step equiv_step]];
-      try assumption.
-    exists t_step. split.
+    destruct (bisim__POR s1 s t1 t' IHequiv) as [_ bisim_complete].
+    destruct (bisim_complete t H) as [t0' [bisim_step bisim_equiv]].
+    exists t0'. split.
     + econstructor.
-      * apply comp_step.
+      * apply bisim_step.
       * apply IHcomp.
-    + assumption.
-Qed.
-
-(** but TOTAL relies on both equiv_pc and equiv_acc_subst *)
-Theorem correctness__total: forall s s' t0 t0' t V0,
-    red_star__POR (t0, s) (t, s') ->
-    Beval V0 (pc t) = true ->
-    is_abstraction V0 t0' t0 ->
-    exists t', red_star__C V0 (t0', s) (t', s')
-        /\ is_abstraction V0 t' t.
-Proof.
-  intros.
-  destruct (correctness__POR _ _ _ _ H) as [ts [comp__S equiv__S]].
-  destruct (correctness _ _ _ _ t0' V0 comp__S) as [tc [comp__C Habs]].
-    - rewrite <- (equiv_pc V0 t ts); assumption.
-    - assumption.
-    - exists tc. splits; try assumption.
-      + symmetry. rewrite equiv_acc_subst with (t' := ts); assumption.
-Qed.
-
-Theorem completeness__total : forall s s' t0 t t0' V0,
-    red_star__C V0 (t0, s) (t, s') ->
-    is_abstraction V0 t0 t0' ->
-    exists t', red_star__POR (t0', s) (t', s')
-          /\ is_abstraction V0 t t'.
-Proof.
-  intros.
-  destruct (completeness _ _ _ _ t0' V0 H H0) as [ts [comp__S [Hpc Habs]]].
-  destruct (completeness__POR _ _ _ _ comp__S) as [t__POR [comp__POR Hequiv]].
-  exists t__POR. splits.
-  + assumption.
-  + rewrite <- (equiv_pc V0 ts _); assumption.
-  + rewrite equiv_acc_subst with (t' := ts).
-    * assumption.
-    * symmetry. assumption.
+    + apply bisim_equiv.
 Qed.
 
 (** Concrete POR *)
@@ -424,46 +396,48 @@ Variant head_red__PORC (V: Valuation): relation (trace__C * Stmt) :=
 Definition red__PORC V := context_red is_context (head_red__PORC V).
 Definition red_star__PORC V := clos_refl_trans_n1 _ (red__PORC V).
 
-Theorem correctness__PORC: forall V0 s0 t0 s t,
-    red_star__PORC V0 (t0, s0) (t, s) ->
-    exists t', red_star__C V0 (t0, s0) (t', s) /\ t ≃ t'.
+Theorem bisim__PORC: forall V s s' t0 t0',
+    t0 ≃ t0' ->
+    (forall t, red__PORC V (t0, s) (t, s') -> exists t', red__C V (t0', s) (t', s') /\ t ≃ t')
+  /\ (forall t, red__C V (t0, s) (t, s') -> exists t', red__PORC V (t0', s) (t', s') /\ t ≃ t').
+Proof.
+  (* this proof (and formulation) is identical to the symbolic case *)
+  split; intros.
+  - dependent destruction H0. dependent destruction H0.
+    destruct (equiv_step__C V (C s0) t1 (C s'0) t t0') as [t2' [Hstep Hequiv]];
+      [transitivity t0 | constructor |]; try assumption.
+    exists t2'. split; assumption.
+  - destruct (equiv_step__C V s t0 s' t t0' H H0) as [t2' [Hstep Hequiv]].
+    dependent destruction Hstep.
+    exists t2'. split.
+    + eapply ctx_red_intro.
+      * apply POR_intro__C with (t0 := t0').
+        ** reflexivity.
+        ** assumption.
+      * assumption.
+    + assumption.
+Qed.
+
+Corollary correctness__PORC: forall V s0 t0 s t,
+    red_star__PORC V (t0, s0) (t, s) ->
+    exists t', red_star__C V (t0, s0) (t', s) /\ t ≃ t'.
 Proof.
   intros. dependent induction H.
   - exists t. split; constructor.
   - destruct y. destruct (IHclos_refl_trans_n1 s0 t0 s1 t1) as [t' [IHcomp IHequiv]];
       try reflexivity.
-    dependent destruction H. dependent destruction H.
-    specialize (equiv_step__C V0 (C s2) t2 (C s') t t'). intros.
-    destruct H3 as [t2' [equiv_step Hequiv]].
-    + transitivity t1; assumption.
-    + constructor; assumption.
-    + eexists. split.
-      * econstructor.
-        ** apply equiv_step.
-        ** assumption.
-      * assumption.
+    destruct (bisim__PORC V s1 s t1 t' IHequiv) as [bisim_correct _].
+    destruct (bisim_correct t H) as [t0' [bisim_step bisim_equiv]].
+    exists t0'. split.
+    + econstructor.
+      * apply bisim_step.
+      * apply IHcomp.
+    + apply bisim_equiv.
 Qed.
 
-Lemma completeness_step__PORC: forall V0 t0 t0' s0 t s,
-    t0 ≃ t0' -> red__C V0 (t0, s0) (t, s) ->
-    exists t', red__PORC V0 (t0', s0) (t', s)
-        /\ t ≃ t'.
-Proof.
-  intros.
-  destruct (equiv_step__C _ _ _ _ _ _ H H0) as [t' [Hstep Hequiv]].
-  dependent destruction Hstep.
-  exists t'. split.
-  + eapply ctx_red_intro.
-    apply POR_intro__C with (t0 := t0').
-    * reflexivity.
-    * apply H1.
-    * assumption.
-  + assumption.
-Qed.
-
-Theorem completeness__PORC: forall V0 t0 s0 t s,
-    red_star__C V0 (t0, s0) (t, s) ->
-    exists t', red_star__PORC V0 (t0, s0) (t', s)
+Corollary completeness__PORC: forall V t0 s0 t s,
+    red_star__C V (t0, s0) (t, s) ->
+    exists t', red_star__PORC V (t0, s0) (t', s)
         /\ t ≃ t'.
 Proof.
   intros. dependent induction H.
@@ -471,18 +445,18 @@ Proof.
   - destruct y.
     destruct (IHclos_refl_trans_n1 t0 s0 t1 s1) as [t' [IHcomp IHequiv]];
       try reflexivity.
-    destruct (completeness_step__PORC V0 t1 t' s1 t s) as [t_step [comp_step equiv_step]];
-      try assumption.
-    exists t_step. split.
+    destruct (bisim__PORC V s1 s t1 t' IHequiv) as [_ bisim_complete].
+    destruct (bisim_complete t H) as [t0' [bisim_step bisim_equiv]].
+    exists t0'. split.
     + econstructor.
-      * apply comp_step.
+      * apply bisim_step.
       * apply IHcomp.
-    + assumption.
+    + apply bisim_equiv.
 Qed.
 
 (** Relationship between PORC and POR *)
+
 (* PORC-POR relies on all 3: equiv_pc, equiv_acc_subst and equiv_acc_val*)
-(* and equiv_extends actually, through the PORC results*)
 Lemma equiv_is_abstraction: forall V0 ts ts' tc tc',
     ts ~ ts' -> tc ≃ tc' -> is_abstraction V0 tc ts -> is_abstraction V0 tc' ts'.
 Proof.
@@ -492,7 +466,50 @@ Proof.
       [rewrite <- (equiv_acc_val V0 tc tc') |]; assumption.
 Qed.
 
-Theorem POR_correctness: forall V0 s s' t0 t0' t,
+Theorem POR_bisim: forall V s s' t0 t0',
+    is_abstraction V t0 t0' ->
+    (forall t, red__PORC V (t0, s) (t, s') ->
+          exists t', (red__POR (t0', s) (t', s')) /\ is_abstraction V t t')
+    /\ (forall t, red__POR (t0', s) (t, s') /\ Beval V (pc t) = true ->
+            (exists t', red__PORC V (t0, s) (t', s') /\ acc_val V t' = Comp V (acc_subst id_sub t))).
+Proof.
+  intros.
+  destruct (bisimulation V s s' t0 t0' H) as [complete correct].
+  destruct (bisim__POR s s' t0' t0') as [PORcomplete PORcorrect];
+    try reflexivity.
+  destruct (bisim__PORC V s s' t0 t0) as [PORCcomplete PORCcorrect];
+    try reflexivity.
+
+  split; intros.
+  - destruct (PORCcomplete t H0) as [t' [Ccomp Cequiv]].
+    destruct (complete t' Ccomp) as [t'' [Scomp Habs]].
+    destruct (PORcorrect t'' Scomp) as [ts [PORcomp PORequiv]].
+    exists ts. split.
+    + apply PORcomp.
+    + symmetry in Cequiv. apply (equiv_is_abstraction V t'' ts t' t PORequiv Cequiv Habs).
+  - destruct H0. destruct (PORcomplete t H0) as [t' [Scomp Sequiv]].
+    destruct (correct t') as [t'' [Ccomp Habs]];
+      [ split;
+        [ apply Scomp
+        | rewrite <- (equiv_pc V t t' Sequiv); apply H1] |].
+    destruct (PORCcorrect t'' Ccomp) as [tc [PORCcomp Cequiv]].
+      exists tc. split.
+    * apply PORCcomp.
+    * rewrite <- (equiv_acc_val V t'' tc Cequiv).
+      rewrite (equiv_acc_subst _ t t' Sequiv).
+      apply Habs.
+Qed.
+
+Lemma pc_monotone_step__POR : forall V0 s1 s2 t1 t2,
+    red__POR (t1, s1) (t2, s2) -> Beval V0 (pc t2) = true -> Beval V0 (pc t1) = true.
+Proof. intros. inversion H. inversion H4; inversion H12; subst;
+         try (rewrite <- (equiv_pc _ t0 t1));
+         try (rewrite <- (equiv_pc _ t2 t1));
+         try (simpl in H0; assumption);
+         try(eapply pc_monotone; apply H0).
+Qed.
+
+Corollary POR_correctness: forall V0 s s' t0 t0' t,
     red_star__POR (t0, s) (t, s') ->
     Beval V0 (pc t) = true ->
     is_abstraction V0 t0' t0 ->
@@ -500,29 +517,114 @@ Theorem POR_correctness: forall V0 s s' t0 t0' t,
         /\ is_abstraction V0 t' t.
 Proof.
   intros.
-  destruct (correctness__total _ _ _ t0' _ V0 H H0 H1) as [tc [Hcomp__C Habs]].
-  destruct (completeness__PORC V0 _ _ _ _ Hcomp__C) as [t__PORC [Hcomp__PORC Hequiv]].
-  exists t__PORC. split.
-  + assumption.
-  + apply (equiv_is_abstraction V0 t t tc t__PORC).
-    * reflexivity.
-    * assumption.
-    * assumption.
+  dependent induction H.
+  - eexists. split; [constructor | assumption].
+  - destruct y. edestruct (IHclos_refl_trans_n1 s s0 t0) as [t' [IHcomp [IHpc IHabs]]];
+      try reflexivity; try assumption.
+    rewrite (pc_monotone_step__POR _ _ _ _ _ H H1). reflexivity.
+    destruct (POR_bisim V0 s0 s' t' t1) as [_ bisim_correct];
+      try assumption.
+    split; assumption.
+    edestruct (bisim_correct t) as [tc [Hstep Habs]]. split.
+    + apply H.
+    + assumption.
+    + exists tc. splits.
+      * econstructor.
+        -- apply Hstep.
+        -- apply IHcomp.
+      * assumption.
+      * symmetry. apply Habs.
 Qed.
 
-Theorem POR_completeness: forall V0 s s' t0 t0' t,
+Corollary POR_completeness: forall V0 s s' t0 t0' t,
     red_star__PORC V0 (t0, s) (t, s') ->
     is_abstraction V0 t0 t0' ->
     exists t', red_star__POR (t0', s) (t', s')
         /\ is_abstraction V0 t t'.
 Proof.
   intros.
-  destruct (correctness__PORC V0 _ _ _ _ H) as [tc [Hcomp__C Hequiv]].
-  destruct (completeness__total _ _ _ _ _ V0 Hcomp__C H0) as [t__POR [Hcomp__POR Habs]].
-  exists t__POR. split.
+  dependent induction H.
+  - eexists. split; [constructor | assumption].
+  - destruct y. edestruct (IHclos_refl_trans_n1 s s0 t0) as [t' [IHcomp [IHpc IHabs]]];
+      try reflexivity; try assumption.
+    destruct (POR_bisim V0 s0 s' t1 t') as [bisim_complete _];
+      try assumption.
+    split; assumption.
+    edestruct (bisim_complete t) as [ts [Hstep Habs]].
+    + apply H.
+    + exists ts. splits.
+      * econstructor.
+        -- apply Hstep.
+        -- apply IHcomp.
+      * apply (proj1 Habs).
+      * apply (proj2 Habs).
+Qed.
+
+(** total relies on both equiv_pc and equiv_acc_subst *)
+Theorem correctness__total: forall s s' t0 t0' t V0,
+    red_star__POR (t0, s) (t, s') ->
+    Beval V0 (pc t) = true ->
+    is_abstraction V0 t0' t0 ->
+    exists t', red_star__C V0 (t0', s) (t', s')
+        /\ is_abstraction V0 t' t.
+Proof.
+  intros.
+  destruct (correctness__POR _ _ _ _ H) as [ts [comp__S equiv__S]].
+  destruct (correctness _ _ _ _ t0' V0 comp__S) as [tc [comp__C Habs]].
+    - rewrite <- (equiv_pc V0 t ts); assumption.
+    - assumption.
+    - exists tc. splits; try assumption.
+      + symmetry. rewrite equiv_acc_subst with (t' := ts); assumption.
+Qed.
+
+Theorem completeness__total : forall s s' t0 t t0' V0,
+    red_star__C V0 (t0, s) (t, s') ->
+    is_abstraction V0 t0 t0' ->
+    exists t', red_star__POR (t0', s) (t', s')
+          /\ is_abstraction V0 t t'.
+Proof.
+  intros.
+  destruct (completeness _ _ _ _ t0' V0 H H0) as [ts [comp__S [Hpc Habs]]].
+  destruct (completeness__POR _ _ _ _ comp__S) as [t__POR [comp__POR Hequiv]].
+  exists t__POR. splits.
   + assumption.
-  + apply (equiv_is_abstraction V0 t__POR t__POR tc t).
-    * reflexivity.
-    * symmetry; assumption.
+  + rewrite <- (equiv_pc V0 ts _); assumption.
+  + rewrite equiv_acc_subst with (t' := ts).
     * assumption.
+    * symmetry. assumption.
+Qed.
+
+Theorem completeness__total' : forall V s s' t0 t t0',
+    red_star__C V (t0, s) (t, s') ->
+    is_abstraction V t0 t0' ->
+    exists t', red_star__POR (t0', s) (t', s')
+          /\ is_abstraction V t t'.
+Proof.
+  intros.
+  destruct (completeness__PORC V t0 s t s' H) as [tc [PORC_comp PORC_equiv]].
+  destruct (POR_completeness V s s' _ _ _ PORC_comp H0) as [ts [POR_comp POR_abs]].
+  exists ts. split.
+  + assumption.
+  + apply (equiv_is_abstraction V ts ts tc t).
+    * reflexivity.
+    * symmetry. apply PORC_equiv.
+    * apply POR_abs.
+Qed.
+
+Theorem correctness__total': forall V s s' t0 t0' t,
+    red_star__POR (t0, s) (t, s') ->
+    Beval V (pc t) = true ->
+    is_abstraction V t0' t0 ->
+    exists t', red_star__C V (t0', s) (t', s')
+        /\ is_abstraction V t' t.
+Proof.
+  intros.
+  destruct (POR_correctness V s s' t0 t0' t H H0 H1) as [t__PORC [Hcomp Habs]].
+  destruct (correctness__PORC V s t0' s' t__PORC Hcomp) as [tc [Ccomp Cequiv]].
+  exists tc. split.
+  + apply Ccomp.
+  + eapply equiv_is_abstraction.
+    * reflexivity.
+    * apply Cequiv.
+    * apply Habs.
 Qed.

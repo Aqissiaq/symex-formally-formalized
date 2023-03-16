@@ -210,7 +210,7 @@ Proof.
   - intros. destruct H0. apply correctness_step with (t0 := t0'); assumption.
 Qed.
 
-Theorem correctness : forall s s' t0 t t0' V0,
+Corollary correctness : forall s s' t0 t t0' V0,
     red_star__S (t0, s) (t, s') ->
     Beval V0 (pc t) = true ->
     is_abstraction V0 t0' t0 ->
@@ -230,7 +230,7 @@ Proof.
         ** assumption.
 Qed.
 
-Theorem completeness : forall s s' t0 t t0' V0,
+Corollary completeness : forall s s' t0 t t0' V0,
     red_star__C V0 (t0, s) (t, s') ->
     is_abstraction V0 t0 t0' ->
     exists t', red_star__S (t0', s) (t', s')
