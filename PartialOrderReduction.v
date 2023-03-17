@@ -474,11 +474,10 @@ Theorem POR_bisim: forall V s s' t0 t0',
             (exists t', red__PORC V (t0, s) (t', s') /\ acc_val V t' = Comp V (acc_subst id_sub t))).
 Proof.
   intros.
+  (* I suppose I could do this directly, but c'mon *)
   destruct (bisimulation V s s' t0 t0' H) as [complete correct].
-  destruct (bisim__POR s s' t0' t0') as [PORcomplete PORcorrect];
-    try reflexivity.
-  destruct (bisim__PORC V s s' t0 t0) as [PORCcomplete PORCcorrect];
-    try reflexivity.
+  destruct (bisim__POR s s' t0' t0' (trace_eq_refl t0')) as [PORcomplete PORcorrect].
+  destruct (bisim__PORC V s s' t0 t0 (trace_eq_refl t0)) as [PORCcomplete PORCcorrect].
 
   split; intros.
   - destruct (PORCcomplete t H0) as [t' [Ccomp Cequiv]].
@@ -519,8 +518,8 @@ Proof.
   intros.
   dependent induction H.
   - eexists. split; [constructor | assumption].
-  - destruct y. edestruct (IHclos_refl_trans_n1 s s0 t0) as [t' [IHcomp [IHpc IHabs]]];
-      try reflexivity; try assumption.
+  - destruct y. destruct (IHclos_refl_trans_n1 s s0 t0 t1 eq_refl eq_refl) as [t' [IHcomp [IHpc IHabs]]];
+      try assumption.
     rewrite (pc_monotone_step__POR _ _ _ _ _ H H1). reflexivity.
     destruct (POR_bisim V0 s0 s' t' t1) as [_ bisim_correct];
       try assumption.
@@ -545,8 +544,8 @@ Proof.
   intros.
   dependent induction H.
   - eexists. split; [constructor | assumption].
-  - destruct y. edestruct (IHclos_refl_trans_n1 s s0 t0) as [t' [IHcomp [IHpc IHabs]]];
-      try reflexivity; try assumption.
+  - destruct y. destruct (IHclos_refl_trans_n1 s s0 t0 t1 eq_refl eq_refl) as [t' [IHcomp [IHpc IHabs]]];
+      try assumption.
     destruct (POR_bisim V0 s0 s' t1 t') as [bisim_complete _];
       try assumption.
     split; assumption.
@@ -561,7 +560,33 @@ Proof.
 Qed.
 
 (** total relies on both equiv_pc and equiv_acc_subst *)
-Theorem correctness__total: forall s s' t0 t0' t V0,
+Theorem bisim__total: forall V s s' t0 t0',
+    is_abstraction V t0 t0' ->
+    (forall t, red__C V (t0, s) (t, s') ->
+          exists t', (red__POR (t0', s) (t', s')) /\ is_abstraction V t t')
+    /\ (forall t, red__POR (t0', s) (t, s') /\ Beval V (pc t) = true ->
+            (exists t', red__C V (t0, s) (t', s') /\ acc_val V t' = Comp V (acc_subst id_sub t))).
+Proof.
+  intros.
+  destruct (bisimulation V s s' t0 t0' H) as [complete correct].
+  destruct (bisim__POR s s' t0' t0' (trace_eq_refl t0')) as [PORcomplete PORcorrect].
+
+  split; intros.
+  - destruct (complete t H0) as [ts [Scomp Habs]].
+    destruct (PORcorrect ts Scomp) as [t__POR [PORcomp Hequiv]].
+    exists t__POR. split.
+    + apply PORcomp.
+    + apply (equiv_is_abstraction V ts t__POR t t Hequiv (trace_eq_refl t) Habs).
+  - destruct H0. destruct (PORcomplete t H0) as [t__POR [PORcomp Hequiv]].
+    destruct (correct t__POR) as [tc [Ccomp Habs]]. split.
+    + apply PORcomp.
+    + rewrite <- (equiv_pc V t t__POR); assumption.
+    + exists tc. split.
+      * apply Ccomp.
+      * rewrite (equiv_acc_subst _ t t__POR); assumption.
+Qed.
+
+Corollary correctness__total: forall s s' t0 t0' t V0,
     red_star__POR (t0, s) (t, s') ->
     Beval V0 (pc t) = true ->
     is_abstraction V0 t0' t0 ->
@@ -569,12 +594,23 @@ Theorem correctness__total: forall s s' t0 t0' t V0,
         /\ is_abstraction V0 t' t.
 Proof.
   intros.
-  destruct (correctness__POR _ _ _ _ H) as [ts [comp__S equiv__S]].
-  destruct (correctness _ _ _ _ t0' V0 comp__S) as [tc [comp__C Habs]].
-    - rewrite <- (equiv_pc V0 t ts); assumption.
-    - assumption.
-    - exists tc. splits; try assumption.
-      + symmetry. rewrite equiv_acc_subst with (t' := ts); assumption.
+  dependent induction H.
+  - eexists. split; [constructor | assumption].
+  - destruct y. destruct (IHclos_refl_trans_n1 s s0 t0 t1 eq_refl eq_refl) as [t' [IHcomp [IHpc IHabs]]];
+      try assumption.
+    rewrite (pc_monotone_step__POR _ _ _ _ _ H H1). reflexivity.
+    destruct (bisim__total V0 s0 s' t' t1) as [_ bisim_correct];
+      try assumption.
+    split; assumption.
+    edestruct (bisim_correct t) as [tc [Hstep Habs]]. split.
+    + apply H.
+    + assumption.
+    + exists tc. splits.
+      * econstructor.
+        -- apply Hstep.
+        -- apply IHcomp.
+      * assumption.
+      * symmetry. apply Habs.
 Qed.
 
 Theorem completeness__total : forall s s' t0 t t0' V0,
@@ -584,14 +620,21 @@ Theorem completeness__total : forall s s' t0 t t0' V0,
           /\ is_abstraction V0 t t'.
 Proof.
   intros.
-  destruct (completeness _ _ _ _ t0' V0 H H0) as [ts [comp__S [Hpc Habs]]].
-  destruct (completeness__POR _ _ _ _ comp__S) as [t__POR [comp__POR Hequiv]].
-  exists t__POR. splits.
-  + assumption.
-  + rewrite <- (equiv_pc V0 ts _); assumption.
-  + rewrite equiv_acc_subst with (t' := ts).
-    * assumption.
-    * symmetry. assumption.
+  dependent induction H.
+  - eexists. split; [constructor | assumption].
+  - destruct y. destruct (IHclos_refl_trans_n1 s s0 t0 t1 eq_refl eq_refl) as [t' [IHcomp [IHpc IHabs]]];
+      try assumption.
+    destruct (bisim__total V0 s0 s' t1 t') as [bisim_complete _];
+      try assumption.
+    split; assumption.
+    edestruct (bisim_complete t) as [ts [Hstep Habs]].
+    + apply H.
+    + exists ts. splits.
+      * econstructor.
+        -- apply Hstep.
+        -- apply IHcomp.
+      * apply (proj1 Habs).
+      * apply (proj2 Habs).
 Qed.
 
 Theorem completeness__total' : forall V s s' t0 t t0',

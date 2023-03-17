@@ -104,13 +104,13 @@ Inductive permute_events {X: Type} (IF: relation X): relation (trace X) :=
       permute_events IF ((((t :: e1) :: e2)) ++ t') ((((t :: e2) :: e1)) ++ t')
 .
 
-Global Instance refl_path_eq {X: Type} {r: relation X}: Reflexive (permute_events r).
+Global Instance trace_eq_refl {X: Type} {r: relation X}: Reflexive (permute_events r).
 Proof. intro. apply pe_refl. Qed.
 
-Global Instance sym_path_eq {X: Type} {r: relation X}: Symmetric (permute_events r).
+Global Instance trace_eq_sym {X: Type} {r: relation X}: Symmetric (permute_events r).
 Proof. intro. apply pe_sym. Qed.
 
-Global Instance trans_path_eq {X: Type} {r: relation X}: Transitive (permute_events r).
+Global Instance trace_eq_trans {X: Type} {r: relation X}: Transitive (permute_events r).
 Proof. intro. apply pe_trans. Qed.
 
 Lemma path_equiv_extend {X:Type}: forall r t t' (x: X),
