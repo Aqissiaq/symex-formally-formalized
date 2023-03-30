@@ -57,12 +57,10 @@ Inductive head_red__S: (trace__S * Stmt) -> (trace__S * Stmt) -> Prop :=
 | head_red_loop_false__S: forall t b s,
     head_red__S (t, <{ while b {s} }>) (t :: Cond (BNot b), SSkip)
 (* I don't love these cases, they're a bit inelegant *)
-| head_red_skip_seq__S: forall s t,
+| head_red_seq__S: forall s t,
     head_red__S (t, <{skip ; s}>) (t, s)
-| head_red_skip_par_l__S: forall s t,
-    head_red__S (t, <{skip || s}>) (t, s)
-| head_red_skip_par_r__S: forall s t,
-    head_red__S (t, <{s || skip }>) (t, s)
+| head_red_par__S: forall t,
+    head_red__S (t, <{skip || skip}>) (t, SSkip)
 .
 
 Definition red__S := context_red is_context head_red__S.
@@ -80,10 +78,8 @@ Inductive head_red__C (V0:Valuation): (trace__C * Stmt) -> (trace__C * Stmt) -> 
 (* I don't love these cases, they're a bit inelegant *)
 | head_red_skip_seq__C: forall s t,
     head_red__C V0 (t, <{skip ; s}>) (t, s)
-| head_red_skip_par_l__C: forall s t,
-    head_red__C V0 (t, <{skip || s}>) (t, s)
-| head_red_skip_par_r__C: forall s t,
-    head_red__C V0 (t, <{s || skip }>) (t, s)
+| head_red_par__C: forall t,
+    head_red__C V0 (t, <{skip || skip}>) (t, SSkip)
 .
 
 Definition red__C (V0:Valuation) := context_red is_context (head_red__C V0).
@@ -101,7 +97,7 @@ Proof. intros. inversion H. inversion H4; subst;
          try(eapply pc_monotone; apply H0).
 Qed.
 
-Theorem correctness_step : forall s s' t0 t t0' V0,
+Lemma correctness_step : forall s s' t0 t t0' V0,
     red__S (t0, s) (t, s') ->
     Beval V0 (pc t) = true ->
     is_abstraction V0 t0' t0 ->
@@ -198,7 +194,7 @@ Proof.
       * simpl. assumption.
 Qed.
 
-Corollary bisimulation: forall V s s' t0 t0',
+Theorem bisimulation: forall V s s' t0 t0',
     is_abstraction V t0 t0' ->
     (forall t, red__C V (t0, s) (t, s') ->
           exists t', (red__S (t0', s) (t', s')) /\ is_abstraction V t t')

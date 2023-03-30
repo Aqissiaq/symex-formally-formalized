@@ -1,5 +1,4 @@
 (** * Partial Order Reduction - Trying out some stuff from Sympaths paper*)
-(* No thread identifiers, idk how that complicates things yet*)
 
 From Coq Require Import String Bool Datatypes Relations Program.Equality Classes.RelationClasses.
 
@@ -201,9 +200,7 @@ Proof.
         apply context_injective in H5; try discriminate; try assumption; symmetry in H5;
         [ apply SIf_true_disjoint in H5
         | apply SIf_false_disjoint in H5
-        | apply SSeq_disjoint in H5
-        | apply SPar_right_disjoint in H5
-        | apply SPar_left_disjoint in H5];
+        | apply SSeq_disjoint in H5];
         contradiction.
     + dependent destruction H0;
         try (apply cons_neq' in x; contradiction);
@@ -219,14 +216,10 @@ Proof.
              [constructor | constructor; assumption]).
     + dependent destruction H;
         apply context_injective in H6; try assumption; apply symmetry in H6;
-        [ discriminate
-        | apply SIf_true_disjoint in H6
+        try discriminate;
+        [ apply SIf_true_disjoint in H6
         | apply SIf_false_disjoint in H6
-        | symmetry in H6; apply SSeq_disjoint in H6
-        | discriminate
-        | apply SSeq_disjoint in H6
-        | apply SPar_right_disjoint in H6
-        | apply SPar_left_disjoint in H6];
+        | apply SSeq_disjoint in H6];
         contradiction.
 Qed.
 
