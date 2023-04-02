@@ -38,18 +38,6 @@ Module BasicExpr.
   Definition Y : string := "y".
   Definition Z : string := "z".
 
-  Module Aexpr_as_DT.
-    Definition t := Aexpr.
-    Definition eq_dec (x y: t): {x = y} + {x <> y}.
-    Proof. Admitted.
-  End Aexpr_as_DT.
-
-  Module Bexpr_as_DT.
-    Definition t := Bexpr.
-    Definition eq_dec (x y: t): {x = y} + {x <> y}.
-    Proof. Admitted.
-  End Bexpr_as_DT.
-
 End BasicExpr.
 
 Module ProcedureExpr.
