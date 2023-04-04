@@ -1,0 +1,365 @@
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Beamer Presentation
+% LaTeX Template
+% Version 1.0 (10/11/12)
+%
+% This template has been downloaded from:
+% http://www.LaTeXTemplates.com
+%
+% License:
+% CC BY-NC-SA 3.0 (http://creativecommons.org/licenses/by-nc-sa/3.0/)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%----------------------------------------------------------------------------------------
+%   PACKAGES AND THEMES
+%----------------------------------------------------------------------------------------
+
+\documentclass{beamer}
+
+\usepackage{tikz}
+\usetikzlibrary{cd}
+
+\mode<presentation> {
+
+% The Beamer class comes with a number of default slide themes
+% which change the colors and layouts of slides. Below this is a list
+% of all the themes, uncomment each in turn to see what they look like.
+
+%\usetheme{default}
+%\usetheme{AnnArbor}
+%\usetheme{Antibes}
+%\usetheme{Bergen}
+%\usetheme{Berkeley}
+%\usetheme{Berlin}
+%\usetheme{Boadilla}
+%\usetheme{CambridgeUS}
+%\usetheme{Copenhagen}
+%\usetheme{Darmstadt}
+%\usetheme{Dresden}
+% \usetheme{Frankfurt}
+%\usetheme{Goettingen}
+%\usetheme{Hannover}
+%\usetheme{Ilmenau}
+%\usetheme{JuanLesPins}
+%\usetheme{Luebeck}
+%\usetheme{Madrid}
+%\usetheme{Malmoe}
+%\usetheme{Marburg}
+\usetheme{Montpellier}
+%\usetheme{PaloAlto}
+%\usetheme{Pittsburgh}
+%\usetheme{Rochester}
+%\usetheme{Singapore}
+%\usetheme{Szeged}
+%\usetheme{Warsaw}
+
+% As well as themes, the Beamer class has a number of color themes
+% for any slide theme. Uncomment each of these in turn to see how it
+% changes the colors of your current slide theme.
+
+% \usecolortheme{albatross}
+% \usecolortheme{beaver}
+% \usecolortheme{beetle}
+% \usecolortheme{crane}
+%\usecolortheme{dolphin}
+%\usecolortheme{dove}
+%\usecolortheme{fly}
+\usecolortheme{lily}
+%\usecolortheme{orchid}
+%\usecolortheme{rose}
+%\usecolortheme{seagull}
+%\usecolortheme{seahorse}
+%\usecolortheme{whale}
+%\usecolortheme{wolverine}
+% \usecolortheme{spruce}
+
+%\setbeamertemplate{footline} % To remove the footer line in all slides uncomment this line
+\setbeamertemplate{footline}[page number] % To replace the footer line in all slides with a simple slide count uncomment this line
+
+\setbeamertemplate{navigation symbols}{} % To remove the navigation symbols from the bottom of all slides uncomment this line
+}
+
+\usepackage{graphicx} % Allows including images
+\graphicspath{{media/}}
+% \usepackage{subfig} % Allows including images
+% \usepackage{booktabs} % Allows the use of \toprule, \midrule and \bottomrule in tables
+\usepackage{datetime}
+\usepackage[]{bm}
+\usepackage[backend=biber, sorting=none]{biblatex}
+\addbibresource{../sources.bib}
+
+\newcommand{\email}[1]{\href{mailto:#1}{\texttt{#1}}}
+\renewcommand{\note}[1]{{\color{orange}#1}}
+\newcommand{\faded}[2][35]{\textcolor{fg!#1}{#2}}
+
+\DeclareMathOperator{\ifs}{\mathtt{if}}
+\DeclareMathOperator{\whiles}{\mathtt{while}}
+\DeclareMathOperator{\skips}{\mathtt{skip}}
+
+\DeclareMathOperator{\fold}{\mathtt{fold}}
+\DeclareMathOperator{\update}{\mathtt{update}}
+\DeclareMathOperator{\true}{\mathtt{true}}
+\DeclareMathOperator{\false}{\mathtt{false}}
+
+% syntax for traces
+\newcommand{\pc}[1]{\ensuremath{pc(#1)}}
+\newcommand{\accC}[2][V_0]{\ensuremath{#2\Downarrow_{#1}}}
+\newcommand{\accS}[2][]{\ensuremath{#2\downarrow_{#1}}}
+
+%----------------------------------------------------------------------------------------
+%   TITLE PAGE
+%----------------------------------------------------------------------------------------
+
+\title[Concurrent SE in Coq]{Concurrent Symbolic Execution with Trace Semantics in Coq}
+\author[Å. A. A. Kløvstad]{Åsmund Aqissiaq Arild Kløvstad\\ \email{aaklovst@ifi.uio.no}}
+\institute[UiO] {Department of Informatics\\ University of Oslo}
+
+\newdate{PLACESdate}{22}{04}{2023}
+\newdate{IFIdate}{12}{04}{2023}
+\date[PLACES 2023]{PLACES 2023, \displaydate{IFIdate}} % Date, can be changed to a custom date
+
+\titlegraphic{\includegraphics[height=3cm]{03_uio_full_logo_eng_pos}}
+
+\begin{document}
+
+\begin{frame}
+\titlepage%
+\end{frame}
+
+\begin{frame}{Symbolic Execution}
+  \begin{itemize}
+    \item Execution with \emph{symbolic values}
+    \item Used for: \note{cite work}
+          \begin{itemize}
+            \item Program analysis
+            \item (Directed) testing
+          \end{itemize}
+    \item Challenges
+          \begin{itemize}
+            \item \faded{Non-termination}
+            \item Concurrency and scaling
+            \item Formalism
+          \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Symbolic Execution Formally Explained~\cite{boer2021}}
+  \begin{columns}[t]
+    \begin{column}{.6\textwidth}
+      \begin{itemize}
+        \item Expressions
+              \begin{itemize}
+                \item with standard booleans ops
+              \end{itemize}
+        \item A small imperative language
+        \item Substitutions $\sigma$: Var $\rightarrow$ Expr
+              \begin{itemize}
+                \item Application $e\sigma$: Expr
+                \item identity $id : x \mapsto x$
+              \end{itemize}
+        \item Valuations $V$: Var $\rightarrow$ Val
+              \begin{itemize}
+                \item Evaluation $V(e)$: Val
+              \end{itemize}
+        \item $V \circ \sigma$: Valuation
+              \begin{itemize}
+                \item $V \circ id = V$
+              \end{itemize}
+      \end{itemize}
+    \end{column}%
+    \begin{column}{.4\textwidth}
+      \begin{align*}
+        e ::&= x \\
+            & \mid op(e_{1},\ldots, e_{n})
+      \end{align*}
+      \begin{align*}
+        s ::&= x := e\\
+            & \mid s~;~s\\
+            & \mid \ifs~e~\{s\}~\{s\}\\
+            & \mid \whiles~e~\{s\}
+      \end{align*}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\newcommand{\Sstep}[2]{\ensuremath{#1 \rightarrow #2}}
+\newcommand{\Sstar}[2]{\ensuremath{#1 \rightarrow^{*} #2}}
+\newcommand{\Cstep}[3][]{\ensuremath{#2 \bm{\Rightarrow}_{#1} #3}}
+\newcommand{\Cstar}[3][]{\ensuremath{#2 \bm{\Rightarrow^{*}}_{#1} #3}}
+
+\begin{frame}{SE Formally Explained: Semantics}
+  \begin{itemize}
+    \item Symbolic $\Sstar{(s, \sigma, \phi)}{(s', \sigma', \phi')}$
+          \begin{align*}
+            &\Sstep{(x := e~;~s, \sigma, \phi)}{(s, \sigma[x := e\sigma], \phi)}\\
+            &\Sstep{(\ifs~e~\{s_{1}\}\{s_{2}\}~;~s, \sigma, \phi)}{(s_{1}~;~s, \sigma, \phi \land e\sigma)}\\
+            &\Sstep{(\ifs~e~\{s_{1}\}\{s_{2}\}~;~s, \sigma, \phi)}{(s_{2}~;~s, \sigma, \phi \land \neg e\sigma)}
+          \end{align*}
+    \item Concrete $\Cstar{(s, V)}{(s', V')}$
+          \begin{align*}
+            &\Cstep{(x := e~;~s, V)}{(s, V[x := V(e)])}\\
+            &\Cstep{(\ifs~e~\{s_{1}\}\{s_{2}\}~;~s, V)}{(s_{1}~;~s, V)}, \text{if V (e) = true}
+          \end{align*}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{SE Formally Explained: Correctness \& Completeness}
+  \begin{theorem}[Correctness]
+    If $\Sstar{(s, id, true)}{(s', \sigma, \phi)}$ and $V(\phi)$ = true, then $\Cstar{(s, V)}{(s, V \circ \sigma)}$
+  \end{theorem}
+  \vfill
+  \begin{theorem}[Completeness]
+    If $\Cstar{(s, V_{0})}{(s', V)}$ there exists $\Sstar{(s, id, true)}{(s', \sigma, \phi)}$ such that $V = V_{0} \circ \sigma$ and $V(\phi)$ = true
+  \end{theorem}
+  \note{This concludes my recap of other people's work. lmao}
+\end{frame}
+
+\begin{frame}{SE Formally Formalized}
+  Implementing de Boer and Bonsangue's work in Coq
+  \begin{itemize}
+    \item Typed expressions
+    \item The id-substitution
+    \item Generic context machinery
+    \item Inductive transition relations
+    \item Stepwise reflexive-transitive closure from Relations
+    \item Proofs by induction + case analysis
+  \end{itemize}
+
+  Ask me about Coq after!
+\end{frame}
+
+\begin{frame}{Parallelism}
+  \begin{columns}[t]
+    \begin{column}{.6\textwidth}
+      \begin{itemize}
+        \item Shared memory
+        \item Parallel composition
+        \item Extra context
+              \[C ::= \square \mid (C~;~s) \mid (C~|\!|~s) \mid (s~|\!|~C)\]
+        \item Nondeterministic branching in both symbolic and concrete semantics
+        \item Correctness and completeness still hold!
+      \end{itemize}
+    \end{column}
+    \begin{column}{.4\textwidth}
+      \begin{align*}
+        s ::&= \faded{x := e}\\
+            &\faded{\mid s~;~s}\\
+            &\faded[100]{\mid s~|\!|~s}\\
+            &\faded{\mid \ifs~e~\{s\}~\{s\}}\\
+            &\faded{\mid \whiles~e~\{s\}}\\
+            &\faded[100]{\mid \skips}
+      \end{align*}
+      \note{the skip is actually there earlier for context reasons}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Trace Semantics}
+  \begin{itemize}
+    \item Expressive
+
+  Consider \texttt{x := x + 1 |\!| x := x + 2}
+  \[\sigma[x := x + 1][x := x + 2] = \sigma[x := x + 3] = \sigma[x := x + 2][x := x + 1]\]
+  but $(x := x + 1) \curvearrowright (x := x + 2) \ne (x := x + 2) \curvearrowright (x := x + 1)$
+    \item Compositional~\cite{din2022lagc}
+    \item \alert{Partial Order Reduction~\cite{boer2020sympaths}}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Traces Formally Explained}
+  Adapting de Boer and Bonsangue's work to traces
+  \begin{columns}
+    \begin{column}{.5\textwidth}
+      \begin{itemize}
+        \item Symbolic events: assignments and boolean guards
+        \item Concrete events: assignments
+        \item Final states and pc
+        \item Abstraction
+      \end{itemize}
+    \end{column}
+    \begin{column}{.5\textwidth}
+      \begin{align*}
+        \tau_{S} ::&= [~] \mid \tau_{S} :: (x := e) \mid \tau_{S} :: e\\
+        \tau_{C} ::&= [~] \mid \tau_{C} :: (x := e)
+      \end{align*}
+      \begin{align*}
+        \accC[V]{\tau_{C}} &\triangleq \fold~\update~V~\tau_{C}\\
+        \accS[\sigma]{\tau_{S}} &\triangleq \fold~\update~\sigma~\tau_{S}\\
+        \pc{\tau_{S}} &\triangleq \fold~\land~\true~\tau_{S} \\
+        &\note{\text{pc also applies sub}}
+      \end{align*}
+      \begin{align*}
+        \tau_{S}~V\text{-abstracts}~\tau_{C} \triangleq \accC[V]{\tau_{C}} = V \circ \accS[id]{\tau_{S}}
+      \end{align*}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Trace Semantics Formally Explained}
+  \begin{itemize}
+    \item Symbolic $\Sstar{(s, \tau_{S})}{(s', \tau'_{S})}$
+          \begin{align*}
+            &\Sstep{(x := e, \tau_{S})}{(\skips, \tau_{S} :: (x :=  e))}\\
+            &\Sstep{(\ifs~e~\{s_{1}\}\{s_{2}\}, \tau_{S})}{(s_{1}, \tau_{S} :: e)}\\
+          \end{align*}
+    \item Concrete $\Cstar[V]{(s, \tau_{C})}{(s', \tau'_{C})}$
+          \begin{align*}
+            &\Cstep[V]{(x := e, \tau_{C})}{(\skips, \tau_{C} :: (x := e))}\\
+            &\Cstep[V]{(\ifs~e~\{s_{1}\}\{s_{2}\}, \tau_{C})}{(s_{1}, \tau_{C})}, \text{if } \accC[V]{\tau_C} (e) = \true
+          \end{align*}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{SE Formally Explained: Correctness \& Completeness}
+  \begin{theorem}[Correctness]
+    If $\Sstar{(s, \tau_{S}^{0})}{(s', \tau)}$, $\tau_{C}^{0}$ V-abstracts $\tau_{S}^{0}$, and $V(\pc{\tau})$ = true, there exists $\Cstar[V]{(s, \tau_{C}^{0})}{(s', \tau_{C})}$ such that $\tau_{S}$ V-abstracts $\tau_{C}$
+  \end{theorem}
+  \vfill
+  \begin{theorem}[Completeness]
+    If $\Cstar[V]{(s, \tau_{C}^{0})}{(s', \tau_{C})}$ there exists $\Sstar{(s, \tau_{S}^{0})}{(s', \tau_{S})}$ such that:
+    \begin{itemize}
+      \item $V(\pc{\tau_S})$ = true
+      \item $\tau_S^0$~V-abstracts~$\tau_C^0$
+      \item $\tau_S$~V-abstracts~$\tau_C$
+    \end{itemize}
+  \end{theorem}
+  \note{Could formulate as bisimulation}
+\end{frame}
+
+\begin{frame}{Summary}
+  \begin{itemize}
+    \item Symbolic Execution Formally Explained, Formalized
+    \item Extended with:
+          \begin{itemize}
+            \item Contexts
+            \item Parallel Composition
+            \item Traces Semantics
+          \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Future}
+  \begin{itemize}
+    \item Generalize
+          \begin{itemize}
+            \item Language features
+            \item Semantics / trace events
+            \item Different notions of abstraction
+                  \note{current one kinda collapses down to state}
+          \end{itemize}
+    \item \alert{Partial Order Reduction}
+    \item Composition à la LAGC
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  Thank you, questions?
+\end{frame}
+
+\begin{frame}{References}
+  \printbibliography{}
+\end{frame}
+
+\end{document}
