@@ -21,6 +21,17 @@
 \usepackage{tikz}
 \usetikzlibrary{cd}
 
+\usepackage{mathpartir}
+\usepackage{graphicx} % Allows including images
+\graphicspath{{media/}}
+% \usepackage{subfig} % Allows including images
+% \usepackage{booktabs} % Allows the use of \toprule, \midrule and \bottomrule in tables
+\usepackage[]{bm}
+\usepackage[backend=biber,
+style=authoryear-comp,
+]{biblatex}
+\addbibresource{../sources.bib}
+
 \mode<presentation> {
 
 % The Beamer class comes with a number of default slide themes
@@ -47,13 +58,13 @@
 %\usetheme{Madrid}
 %\usetheme{Malmoe}
 %\usetheme{Marburg}
-\usetheme{Montpellier}
+%\usetheme{Montpellier}
 %\usetheme{PaloAlto}
 %\usetheme{Pittsburgh}
 %\usetheme{Rochester}
 %\usetheme{Singapore}
 %\usetheme{Szeged}
-%\usetheme{Warsaw}
+\usetheme{Warsaw}
 
 % As well as themes, the Beamer class has a number of color themes
 % for any slide theme. Uncomment each of these in turn to see how it
@@ -74,21 +85,11 @@
 %\usecolortheme{whale}
 %\usecolortheme{wolverine}
 % \usecolortheme{spruce}
-
 %\setbeamertemplate{footline} % To remove the footer line in all slides uncomment this line
 \setbeamertemplate{footline}[page number] % To replace the footer line in all slides with a simple slide count uncomment this line
 
 \setbeamertemplate{navigation symbols}{} % To remove the navigation symbols from the bottom of all slides uncomment this line
 }
-
-\usepackage{graphicx} % Allows including images
-\graphicspath{{media/}}
-% \usepackage{subfig} % Allows including images
-% \usepackage{booktabs} % Allows the use of \toprule, \midrule and \bottomrule in tables
-\usepackage{datetime}
-\usepackage[]{bm}
-\usepackage[backend=biber, sorting=none]{biblatex}
-\addbibresource{../sources.bib}
 
 \newcommand{\email}[1]{\href{mailto:#1}{\texttt{#1}}}
 \renewcommand{\note}[1]{{\color{orange}#1}}
@@ -116,11 +117,9 @@
 \author[Å. A. A. Kløvstad]{Åsmund Aqissiaq Arild Kløvstad\\ \email{aaklovst@ifi.uio.no}}
 \institute[UiO] {Department of Informatics\\ University of Oslo}
 
-\newdate{PLACESdate}{22}{04}{2023}
-\newdate{IFIdate}{12}{04}{2023}
-\date[PLACES 2023]{PLACES 2023, \displaydate{IFIdate}} % Date, can be changed to a custom date
+\date[PLACES 2023]{Programming Language Approaches to Concurrency- and Communication-cEntric Software 2023} % Date, can be changed to a custom date
 
-\titlegraphic{\includegraphics[height=3cm]{03_uio_full_logo_eng_pos}}
+\titlegraphic{\includegraphics[height=2.5cm]{03_uio_full_logo_eng_pos}}
 
 \begin{document}
 
@@ -145,19 +144,21 @@
   \end{itemize}
 \end{frame}
 
-\begin{frame}{Symbolic Execution Formally Explained~\cite{boer2021}}
+\section{Symbolic Execution Formally Explained}
+
+\begin{frame}{Symbolic Execution Formally Explained~\parencite{boer2021}}
   \begin{columns}[t]
     \begin{column}{.6\textwidth}
       \begin{itemize}
         \item Expressions
               \begin{itemize}
-                \item with standard booleans ops
+                \item With standard booleans ops
               \end{itemize}
         \item A small imperative language
         \item Substitutions $\sigma$: Var $\rightarrow$ Expr
               \begin{itemize}
                 \item Application $e\sigma$: Expr
-                \item identity $id : x \mapsto x$
+                \item Identity $id : x \mapsto x$
               \end{itemize}
         \item Valuations $V$: Var $\rightarrow$ Val
               \begin{itemize}
@@ -191,17 +192,20 @@
 
 \begin{frame}{SE Formally Explained: Semantics}
   \begin{itemize}
+    \item Path condition $\phi$: boolean expression
     \item Symbolic $\Sstar{(s, \sigma, \phi)}{(s', \sigma', \phi')}$
-          \begin{align*}
-            &\Sstep{(x := e~;~s, \sigma, \phi)}{(s, \sigma[x := e\sigma], \phi)}\\
-            &\Sstep{(\ifs~e~\{s_{1}\}\{s_{2}\}~;~s, \sigma, \phi)}{(s_{1}~;~s, \sigma, \phi \land e\sigma)}\\
-            &\Sstep{(\ifs~e~\{s_{1}\}\{s_{2}\}~;~s, \sigma, \phi)}{(s_{2}~;~s, \sigma, \phi \land \neg e\sigma)}
-          \end{align*}
+          \begin{mathpar}
+            \Sstep{(x := e~;~s, \sigma, \phi)}{(s, \sigma[x := e\sigma], \phi)}\\
+            \Sstep{(\ifs~e~\{s_{1}\}\{s_{2}\}~;~s, \sigma, \phi)}{(s_{1}~;~s, \sigma, \phi\land e\sigma)}\\
+            \Sstep{(\ifs~e~\{s_{1}\}\{s_{2}\}~;~s, \sigma, \phi)}{(s_{2}~;~s, \sigma, \phi\land\neg e\sigma)}\\
+            \ldots
+          \end{mathpar}
     \item Concrete $\Cstar{(s, V)}{(s', V')}$
-          \begin{align*}
-            &\Cstep{(x := e~;~s, V)}{(s, V[x := V(e)])}\\
-            &\Cstep{(\ifs~e~\{s_{1}\}\{s_{2}\}~;~s, V)}{(s_{1}~;~s, V)}, \text{if V (e) = true}
-          \end{align*}
+          \begin{mathpar}
+            \Cstep{(x := e~;~s, V)}{(s, V[x := V(e)])}\\
+            \Cstep{(\ifs~e~\{s_{1}\}\{s_{2}\}~;~s, V)}{(s_{1}~;~s, V)}, \; \text{if V(e) = true}\\
+            \ldots
+          \end{mathpar}
   \end{itemize}
 \end{frame}
 
@@ -209,26 +213,46 @@
   \begin{theorem}[Correctness]
     If $\Sstar{(s, id, true)}{(s', \sigma, \phi)}$ and $V(\phi)$ = true, then $\Cstar{(s, V)}{(s, V \circ \sigma)}$
   \end{theorem}
+  Symbolic executions with satisfiable path conditions have corresponding concrete executions
   \vfill
   \begin{theorem}[Completeness]
     If $\Cstar{(s, V_{0})}{(s', V)}$ there exists $\Sstar{(s, id, true)}{(s', \sigma, \phi)}$ such that $V = V_{0} \circ \sigma$ and $V(\phi)$ = true
   \end{theorem}
-  \note{This concludes my recap of other people's work. lmao}
+  Concrete executions have symbolic counterparts with satisfied path condition
 \end{frame}
+
 
 \begin{frame}{SE Formally Formalized}
   Implementing de Boer and Bonsangue's work in Coq
+  \begin{columns}
+    \begin{column}{.5\textwidth}
+
   \begin{itemize}
     \item Typed expressions
     \item The id-substitution
     \item Generic context machinery
-    \item Inductive transition relations
+    \item Inductive head reduction relation
     \item Stepwise reflexive-transitive closure from Relations
     \item Proofs by induction + case analysis
   \end{itemize}
+    \end{column}
+    \begin{column}{.5\textwidth}
+      \begin{align*}
+        C ::&= \square \mid C~;~s\\
+        s ::&= \faded{\ldots}\\
+        &\mid \skips\\
+      \end{align*}
+      \begin{align*}
+        \infer{\Sstep{(s, X)}{(s', X')}}{\Sstep{(C[s], X)}{(C[s], X')}}
+      \end{align*}
+    \end{column}
+  \end{columns}
 
   Ask me about Coq after!
 \end{frame}
+
+\section{Extending the Framework}
+\subsection{Parallelism}
 
 \begin{frame}{Parallelism}
   \begin{columns}[t]
@@ -236,40 +260,43 @@
       \begin{itemize}
         \item Shared memory
         \item Parallel composition
-        \item Extra context
-              \[C ::= \square \mid (C~;~s) \mid (C~|\!|~s) \mid (s~|\!|~C)\]
-        \item Nondeterministic branching in both symbolic and concrete semantics
+        \item Extra context for branching
         \item Correctness and completeness still hold!
       \end{itemize}
     \end{column}
     \begin{column}{.4\textwidth}
+      \begin{align*}
+        C ::&= \faded{\square \mid C~;~s}\\
+            &\faded[100]{\mid C~|\!|~s}\\
+            &\faded[100]{\mid s~|\!|~C}
+      \end{align*}
       \begin{align*}
         s ::&= \faded{x := e}\\
             &\faded{\mid s~;~s}\\
             &\faded[100]{\mid s~|\!|~s}\\
             &\faded{\mid \ifs~e~\{s\}~\{s\}}\\
             &\faded{\mid \whiles~e~\{s\}}\\
-            &\faded[100]{\mid \skips}
+            &\faded{\mid \skips}
       \end{align*}
-      \note{the skip is actually there earlier for context reasons}
     \end{column}
   \end{columns}
 \end{frame}
 
-\begin{frame}{Trace Semantics}
+\subsection{Trace Semantics}
+
+\begin{frame}{Why Trace Semantics}
   \begin{itemize}
     \item Expressive
 
   Consider \texttt{x := x + 1 |\!| x := x + 2}
   \[\sigma[x := x + 1][x := x + 2] = \sigma[x := x + 3] = \sigma[x := x + 2][x := x + 1]\]
   but $(x := x + 1) \curvearrowright (x := x + 2) \ne (x := x + 2) \curvearrowright (x := x + 1)$
-    \item Compositional~\cite{din2022lagc}
-    \item \alert{Partial Order Reduction~\cite{boer2020sympaths}}
+    \item Compositional~\parencite{din2022lagc}
+    \item \alert{Partial Order Reduction~\parencite{boer2020sympaths}}
   \end{itemize}
 \end{frame}
 
-\begin{frame}{Traces Formally Explained}
-  Adapting de Boer and Bonsangue's work to traces
+\begin{frame}{Adapting de Boer and Bonsangue's work to traces}
   \begin{columns}
     \begin{column}{.5\textwidth}
       \begin{itemize}
@@ -281,52 +308,75 @@
     \end{column}
     \begin{column}{.5\textwidth}
       \begin{align*}
-        \tau_{S} ::&= [~] \mid \tau_{S} :: (x := e) \mid \tau_{S} :: e\\
-        \tau_{C} ::&= [~] \mid \tau_{C} :: (x := e)
+        \tau^{S} ::&= [~] \mid \tau^{S} :: (x := e) \mid \tau^{S} :: e\\
+        \tau^{C} ::&= [~] \mid \tau^{C} :: (x := e)
       \end{align*}
       \begin{align*}
-        \accC[V]{\tau_{C}} &\triangleq \fold~\update~V~\tau_{C}\\
-        \accS[\sigma]{\tau_{S}} &\triangleq \fold~\update~\sigma~\tau_{S}\\
-        \pc{\tau_{S}} &\triangleq \fold~\land~\true~\tau_{S} \\
-        &\note{\text{pc also applies sub}}
+        \accC[V]{\tau^{C}} &\triangleq \fold~\update~V~\tau^{C}\\
+        \accS[\sigma]{\tau^{S}} &\triangleq \fold~\update~\sigma~\tau^{S}\\
+        \pc{\tau^{S}} &\triangleq \fold~\land~\true~\tau^{S} \; \text{(sort of)}
       \end{align*}
       \begin{align*}
-        \tau_{S}~V\text{-abstracts}~\tau_{C} \triangleq \accC[V]{\tau_{C}} = V \circ \accS[id]{\tau_{S}}
+        \tau^{S}~V\text{-abstracts}~\tau^{C} \triangleq \accC[V]{\tau^{C}} = V \circ \accS[id]{\tau^{S}}
       \end{align*}
     \end{column}
   \end{columns}
 \end{frame}
 
-\begin{frame}{Trace Semantics Formally Explained}
+\begin{frame}{Transition System}
   \begin{itemize}
-    \item Symbolic $\Sstar{(s, \tau_{S})}{(s', \tau'_{S})}$
+    \item Symbolic $\Sstar{(s, \tau^{S})}{(s', \tau'^{S})}$
           \begin{align*}
-            &\Sstep{(x := e, \tau_{S})}{(\skips, \tau_{S} :: (x :=  e))}\\
-            &\Sstep{(\ifs~e~\{s_{1}\}\{s_{2}\}, \tau_{S})}{(s_{1}, \tau_{S} :: e)}\\
+            &\Sstep{(x := e, \tau^{S})}{(\skips, \tau^{S} :: (x :=  e))}\\
+            &\Sstep{(\ifs~e~\{s_{1}\}\{s_{2}\}, \tau^{S})}{(s_{1}, \tau^{S} :: e)}\\
           \end{align*}
-    \item Concrete $\Cstar[V]{(s, \tau_{C})}{(s', \tau'_{C})}$
+    \item Concrete $\Cstar[V]{(s, \tau^{C})}{(s', \tau'^{C})}$
           \begin{align*}
-            &\Cstep[V]{(x := e, \tau_{C})}{(\skips, \tau_{C} :: (x := e))}\\
-            &\Cstep[V]{(\ifs~e~\{s_{1}\}\{s_{2}\}, \tau_{C})}{(s_{1}, \tau_{C})}, \text{if } \accC[V]{\tau_C} (e) = \true
+            &\Cstep[V]{(x := e, \tau^{C})}{(\skips, \tau^{C} :: (x := e))}\\
+            &\Cstep[V]{(\ifs~e~\{s_{1}\}\{s_{2}\}, \tau^{C})}{(s_{1}, \tau^{C})}, \text{if } \accC[V]{\tau^C} (e) = \true
           \end{align*}
   \end{itemize}
 \end{frame}
 
-\begin{frame}{SE Formally Explained: Correctness \& Completeness}
-  \begin{theorem}[Correctness]
-    If $\Sstar{(s, \tau_{S}^{0})}{(s', \tau)}$, $\tau_{C}^{0}$ V-abstracts $\tau_{S}^{0}$, and $V(\pc{\tau})$ = true, there exists $\Cstar[V]{(s, \tau_{C}^{0})}{(s', \tau_{C})}$ such that $\tau_{S}$ V-abstracts $\tau_{C}$
-  \end{theorem}
-  \vfill
-  \begin{theorem}[Completeness]
-    If $\Cstar[V]{(s, \tau_{C}^{0})}{(s', \tau_{C})}$ there exists $\Sstar{(s, \tau_{S}^{0})}{(s', \tau_{S})}$ such that:
+\begin{frame}{Bisimulation}
+  \begin{figure}
+    \begin{tikzcd}[ampersand replacement=\&]% <--- otherwise Beamer breaks without [fragile]
+      {(s, \tau_{0}^{S})} \arrow[rr] \arrow[dd, "V-abstracts"', no head, dashed] \&  \& {(s', \tau^{S})} \arrow[dd, "V-abstracts", no head, dashed] \\
+      \&  \&                                                             \\
+      {(s, \tau_{0}^{C})} \arrow[rr, Rightarrow]                                \&  \& {(s', \tau^{C})}
+    \end{tikzcd}
+  %   \begin{mathpar}
+  %   \tau^{S}_{0}~V\mbox{-abstracts}~\tau^{C}_{0} \and
+  %   \tau^{S}~V\mbox{-abstracts}~\tau^{C} \and
+  %   \end{mathpar}
+  \end{figure}
+  \vfill{}
+  \begin{theorem}[Bisimulation]
+    If $\accC[V]{\tau^{C}_{0}} = V \circ\accS{\tau^{S}_{0}}$ and $V(\pc{\tau^{S}_{0}}) = \true$ then:
     \begin{itemize}
-      \item $V(\pc{\tau_S})$ = true
-      \item $\tau_S^0$~V-abstracts~$\tau_C^0$
-      \item $\tau_S$~V-abstracts~$\tau_C$
+      \item if $\Sstep{(s, \tau^{S}_{0})}{(s', \tau^{S})}$ and $V(\pc{\tau^{S}}) = \true$, there exists $\Cstep[V]{(s, \tau^{C}_{0})}{(s', \tau^{C})}$
+      \item if $\Cstep[V]{(s, \tau^{C}_{0})}{(s', \tau^{C})}$, there exists $\Sstep{(s, \tau^{S}_{0})}{(s', \tau^{S})}$
+            with true path condition
     \end{itemize}
   \end{theorem}
-  \note{Could formulate as bisimulation}
 \end{frame}
+
+\begin{frame}{Correctness \& Completeness Follow}
+  \begin{corollary}[Correctness]
+    If $\Sstar{(s, \tau^{S}_{0})}{(s', \tau)}$, $\tau^{C}_{0}$ V-abstracts $\tau^{S}_{0}$, and $V(\pc{\tau})$ = true, there exists $\Cstar[V]{(s, \tau^{C}_{0})}{(s', \tau^{C})}$ such that $\tau^{S}$ V-abstracts $\tau^{C}$
+  \end{corollary}
+  \vfill
+  \begin{corollary}[Completeness]
+    If $\Cstar[V]{(s, \tau_{0}^{C})}{(s', \tau_{0}^{C})}$ there exists $\Sstar{(s, \tau_{0}^{S})}{(s', \tau^{S})}$ such that:
+    \begin{itemize}
+      \item $V(\pc{\tau^S})$ = true
+      \item $\tau_{0}^S$~V-abstracts~$\tau_{0}^C$
+      \item $\tau^S$~V-abstracts~$\tau^C$
+    \end{itemize}
+  \end{corollary}
+\end{frame}
+
+\section{Summary and Conclusion}
 
 \begin{frame}{Summary}
   \begin{itemize}
@@ -335,7 +385,7 @@
           \begin{itemize}
             \item Contexts
             \item Parallel Composition
-            \item Traces Semantics
+            \item Trace Semantics
           \end{itemize}
   \end{itemize}
 \end{frame}
@@ -347,7 +397,6 @@
             \item Language features
             \item Semantics / trace events
             \item Different notions of abstraction
-                  \note{current one kinda collapses down to state}
           \end{itemize}
     \item \alert{Partial Order Reduction}
     \item Composition à la LAGC
