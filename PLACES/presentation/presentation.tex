@@ -12,14 +12,14 @@
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%----------------------------------------------------------------------------------------
-%   PACKAGES AND THEMES
-%----------------------------------------------------------------------------------------
+% ----------------------------------------------------------------------------------------
+% PACKAGES AND THEMES
+% ----------------------------------------------------------------------------------------
 
 \documentclass{beamer}
 
 \usepackage{tikz}
-\usetikzlibrary{cd}
+\usetikzlibrary{trees}
 
 \usepackage{mathpartir}
 \usepackage{graphicx} % Allows including images
@@ -34,61 +34,61 @@ style=authoryear-comp,
 
 \mode<presentation> {
 
-% The Beamer class comes with a number of default slide themes
-% which change the colors and layouts of slides. Below this is a list
-% of all the themes, uncomment each in turn to see what they look like.
+  % The Beamer class comes with a number of default slide themes
+  % which change the colors and layouts of slides. Below this is a list
+  % of all the themes, uncomment each in turn to see what they look like.
 
-%\usetheme{default}
-%\usetheme{AnnArbor}
-%\usetheme{Antibes}
-%\usetheme{Bergen}
-%\usetheme{Berkeley}
-%\usetheme{Berlin}
-%\usetheme{Boadilla}
-%\usetheme{CambridgeUS}
-%\usetheme{Copenhagen}
-%\usetheme{Darmstadt}
-%\usetheme{Dresden}
-% \usetheme{Frankfurt}
-%\usetheme{Goettingen}
-%\usetheme{Hannover}
-%\usetheme{Ilmenau}
-%\usetheme{JuanLesPins}
-%\usetheme{Luebeck}
-%\usetheme{Madrid}
-%\usetheme{Malmoe}
-%\usetheme{Marburg}
-%\usetheme{Montpellier}
-%\usetheme{PaloAlto}
-%\usetheme{Pittsburgh}
-%\usetheme{Rochester}
-%\usetheme{Singapore}
-%\usetheme{Szeged}
-\usetheme{Warsaw}
+  % \usetheme{default}
+  % \usetheme{AnnArbor}
+  % \usetheme{Antibes}
+  % \usetheme{Bergen}
+  % \usetheme{Berkeley}
+  % \usetheme{Berlin}
+  % \usetheme{Boadilla}
+  % \usetheme{CambridgeUS}
+  % \usetheme{Copenhagen}
+  % \usetheme{Darmstadt}
+  % \usetheme{Dresden}
+  % \usetheme{Frankfurt}
+  % \usetheme{Goettingen}
+  % \usetheme{Hannover}
+  % \usetheme{Ilmenau}
+  % \usetheme{JuanLesPins}
+  % \usetheme{Luebeck}
+  % \usetheme{Madrid}
+  % \usetheme{Malmoe}
+  % \usetheme{Marburg}
+  % \usetheme{Montpellier}
+  % \usetheme{PaloAlto}
+  % \usetheme{Pittsburgh}
+  % \usetheme{Rochester}
+  % \usetheme{Singapore}
+  % \usetheme{Szeged}
+  \usetheme{Warsaw}
 
-% As well as themes, the Beamer class has a number of color themes
-% for any slide theme. Uncomment each of these in turn to see how it
-% changes the colors of your current slide theme.
+  % As well as themes, the Beamer class has a number of color themes
+  % for any slide theme. Uncomment each of these in turn to see how it
+  % changes the colors of your current slide theme.
 
-% \usecolortheme{albatross}
-% \usecolortheme{beaver}
-% \usecolortheme{beetle}
-% \usecolortheme{crane}
-%\usecolortheme{dolphin}
-%\usecolortheme{dove}
-%\usecolortheme{fly}
-\usecolortheme{lily}
-%\usecolortheme{orchid}
-%\usecolortheme{rose}
-%\usecolortheme{seagull}
-%\usecolortheme{seahorse}
-%\usecolortheme{whale}
-%\usecolortheme{wolverine}
-% \usecolortheme{spruce}
-%\setbeamertemplate{footline} % To remove the footer line in all slides uncomment this line
-\setbeamertemplate{footline}[page number] % To replace the footer line in all slides with a simple slide count uncomment this line
+  % \usecolortheme{albatross}
+  % \usecolortheme{beaver}
+  % \usecolortheme{beetle}
+  % \usecolortheme{crane}
+  % \usecolortheme{dolphin}
+  % \usecolortheme{dove}
+  % \usecolortheme{fly}
+  \usecolortheme{lily}
+  % \usecolortheme{orchid}
+  % \usecolortheme{rose}
+  % \usecolortheme{seagull}
+  % \usecolortheme{seahorse}
+  % \usecolortheme{whale}
+  % \usecolortheme{wolverine}
+  % \usecolortheme{spruce}
+  % \setbeamertemplate{footline} % To remove the footer line in all slides uncomment this line
+  \setbeamertemplate{footline}[frame number] % To replace the footer line in all slides with a simple slide count uncomment this line
 
-\setbeamertemplate{navigation symbols}{} % To remove the navigation symbols from the bottom of all slides uncomment this line
+  \setbeamertemplate{navigation symbols}{} % To remove the navigation symbols from the bottom of all slides uncomment this line
 }
 
 \newcommand{\email}[1]{\href{mailto:#1}{\texttt{#1}}}
@@ -109,9 +109,9 @@ style=authoryear-comp,
 \newcommand{\accC}[2][V_0]{\ensuremath{#2\Downarrow_{#1}}}
 \newcommand{\accS}[2][]{\ensuremath{#2\downarrow_{#1}}}
 
-%----------------------------------------------------------------------------------------
-%   TITLE PAGE
-%----------------------------------------------------------------------------------------
+% ----------------------------------------------------------------------------------------
+% TITLE PAGE
+% ----------------------------------------------------------------------------------------
 
 \title[Concurrent SE in Coq]{Concurrent Symbolic Execution with Trace Semantics in Coq}
 \author[Å. A. A. Kløvstad]{Åsmund Aqissiaq Arild Kløvstad\\ \email{aaklovst@ifi.uio.no}}
@@ -124,24 +124,50 @@ style=authoryear-comp,
 \begin{document}
 
 \begin{frame}
-\titlepage%
+  \titlepage%
 \end{frame}
 
 \begin{frame}{Symbolic Execution}
-  \begin{itemize}
-    \item Execution with \emph{symbolic values}
-    \item Used for: \note{cite work}
-          \begin{itemize}
-            \item Program analysis
-            \item (Directed) testing
-          \end{itemize}
-    \item Challenges
-          \begin{itemize}
-            \item \faded{Non-termination}
-            \item Concurrency and scaling
-            \item Formalism
-          \end{itemize}
-  \end{itemize}
+  \begin{columns}
+    \begin{column}{.4\textwidth}
+      \begin{itemize}
+        \item<+-> Symbolic values
+        \item<+-> Path condition
+        \item<+-> Uses:
+              \begin{itemize}
+                \item Proving (partial) correctness
+                \item Static analysis
+                \item (Directed) testing
+              \end{itemize}
+        \item<+-> Challenges:
+              \begin{itemize}
+                \item Formalism
+                \item Scaling and concurrency
+                \item \faded{Non-termination}
+              \end{itemize}
+      \end{itemize}
+    \end{column}
+    \begin{column}<2->{.6\textwidth}
+      \begin{figure}
+        \begin{tikzpicture}[grow via three points={%
+            one child at (0,-1.5) and two children at (-1.5,-1.25) and (1.5,-1.25)}]
+          \node at (0,0) [align=center]
+          {$\mathtt{x} \mapsto x_{0}, \mathtt{y} \mapsto y_{0}$}
+          child {node [align=center]
+            {$\mathtt{x} \mapsto x_{0}, \mathtt{y} \mapsto y_{0}$ \\ $x_{0} > y_{0}$}
+            child {node [align=center]
+              {$\mathtt{x} \mapsto x_{0} - y_{0}, \mathtt{y} \mapsto y_{0}$ \\ $x_0 > y_0$}
+              child {node [align=center] {\ldots}}
+              child {node [align=center]
+                {$\mathtt{x} \mapsto x_{0} - y_{0}, \mathtt{y} \mapsto y_{0}$ \\ $x_{0} > y_{0} \land x_{0} - y_{0} \leq y_{0}$}}
+            }}
+          child {node [align=center] {$\mathtt{x} \mapsto x_{0}, \mathtt{y} \mapsto y_{0}$ \\ $x_{0} \leq y_{0}$}};
+        \end{tikzpicture}
+        \renewcommand{\figurename}{Ex.}
+        \caption{\texttt{while x > y \{x := x - y\}; return x}}
+      \end{figure}
+    \end{column}
+  \end{columns}
 \end{frame}
 
 \section{Symbolic Execution Formally Explained}
@@ -149,38 +175,41 @@ style=authoryear-comp,
 \begin{frame}{Symbolic Execution Formally Explained~\parencite{boer2021}}
   \begin{columns}[t]
     \begin{column}{.6\textwidth}
-      \begin{itemize}
+      \begin{itemize}[<+->]
         \item Expressions
               \begin{itemize}
-                \item With standard booleans ops
+                \item<.-> With standard booleans ops
               \end{itemize}
         \item A small imperative language
         \item Substitutions $\sigma$: Var $\rightarrow$ Expr
               \begin{itemize}
-                \item Application $e\sigma$: Expr
-                \item Identity $id : x \mapsto x$
+                \item<.-> Application $e\sigma$: Expr
+                \item<.-> Identity $id : x \mapsto x$
               \end{itemize}
+        \item Path condition $\phi$: boolean expression
         \item Valuations $V$: Var $\rightarrow$ Val
               \begin{itemize}
-                \item Evaluation $V(e)$: Val
+                \item<.-> Evaluation $V(e)$: Val
               \end{itemize}
         \item $V \circ \sigma$: Valuation
               \begin{itemize}
-                \item $V \circ id = V$
+                \item<.-> $V \circ id = V$
               \end{itemize}
       \end{itemize}
     \end{column}%
     \begin{column}{.4\textwidth}
-      \begin{align*}
-        e ::&= x \\
-            & \mid op(e_{1},\ldots, e_{n})
-      \end{align*}
-      \begin{align*}
-        s ::&= x := e\\
-            & \mid s~;~s\\
-            & \mid \ifs~e~\{s\}~\{s\}\\
-            & \mid \whiles~e~\{s\}
-      \end{align*}
+      \uncover<1->{
+        \begin{align*}
+          e ::&= x \\
+              & \mid op(e_{1},\ldots, e_{n})
+        \end{align*}}
+      \uncover<2->{
+        \begin{align*}
+          s ::&= x := e\\
+              & \mid s~;~s\\
+              & \mid \ifs~e~\{s\}~\{s\}\\
+              & \mid \whiles~e~\{s\}
+        \end{align*}}
     \end{column}
   \end{columns}
 \end{frame}
@@ -191,8 +220,7 @@ style=authoryear-comp,
 \newcommand{\Cstar}[3][]{\ensuremath{#2 \bm{\Rightarrow^{*}}_{#1} #3}}
 
 \begin{frame}{SE Formally Explained: Semantics}
-  \begin{itemize}
-    \item Path condition $\phi$: boolean expression
+  \begin{itemize}[<+->]
     \item Symbolic $\Sstar{(s, \sigma, \phi)}{(s', \sigma', \phi')}$
           \begin{mathpar}
             \Sstep{(x := e~;~s, \sigma, \phi)}{(s, \sigma[x := e\sigma], \phi)}\\
@@ -210,15 +238,19 @@ style=authoryear-comp,
 \end{frame}
 
 \begin{frame}{SE Formally Explained: Correctness \& Completeness}
-  \begin{theorem}[Correctness]
-    If $\Sstar{(s, id, true)}{(s', \sigma, \phi)}$ and $V(\phi)$ = true, then $\Cstar{(s, V)}{(s, V \circ \sigma)}$
-  \end{theorem}
-  Symbolic executions with satisfiable path conditions have corresponding concrete executions
+  \uncover<1->{
+    \begin{theorem}[Correctness]
+      If $\Sstar{(s, id, true)}{(s', \sigma, \phi)}$ and $V(\phi)$ = true, then $\Cstar{(s, V)}{(s, V \circ \sigma)}$
+    \end{theorem}
+    Symbolic executions with satisfiable path conditions have corresponding concrete executions
+  }
   \vfill
-  \begin{theorem}[Completeness]
-    If $\Cstar{(s, V_{0})}{(s', V)}$ there exists $\Sstar{(s, id, true)}{(s', \sigma, \phi)}$ such that $V = V_{0} \circ \sigma$ and $V(\phi)$ = true
-  \end{theorem}
-  Concrete executions have symbolic counterparts with satisfied path condition
+  \uncover<2->{
+    \begin{theorem}[Completeness]
+      If $\Cstar{(s, V_{0})}{(s', V)}$ there exists $\Sstar{(s, id, true)}{(s', \sigma, \phi)}$ such that $V = V_{0} \circ \sigma$ and $V(\phi)$ = true
+    \end{theorem}
+    Concrete executions have symbolic counterparts with satisfied path condition
+  }
 \end{frame}
 
 
@@ -226,29 +258,32 @@ style=authoryear-comp,
   Implementing de Boer and Bonsangue's work in Coq
   \begin{columns}
     \begin{column}{.5\textwidth}
-
-  \begin{itemize}
-    \item Typed expressions
-    \item The id-substitution
-    \item Generic context machinery
-    \item Inductive head reduction relation
-    \item Stepwise reflexive-transitive closure from Relations
-    \item Proofs by induction + case analysis
-  \end{itemize}
+      \begin{itemize}[<+->]
+        \item Typed expressions
+        \item The id-substitution
+        \item Generic context machinery
+        \item Inductive head reduction relation
+        \item Stepwise reflexive-transitive closure from Relations
+        \item Proofs by induction + case analysis
+      \end{itemize}
     \end{column}
     \begin{column}{.5\textwidth}
-      \begin{align*}
-        C ::&= \square \mid C~;~s\\
-        s ::&= \faded{\ldots}\\
-        &\mid \skips\\
-      \end{align*}
-      \begin{align*}
-        \infer{\Sstep{(s, X)}{(s', X')}}{\Sstep{(C[s], X)}{(C[s], X')}}
-      \end{align*}
+      \uncover<3->{
+        \begin{align*}
+          C ::&= \square \mid C~;~s\\
+          s ::&= \faded{\ldots}\\
+              &\mid \skips\\
+              % an example, but it's ugly
+              % (\square;x:=42)[y:=7] &\triangleq y:=7;x:=42
+        \end{align*}}
+      \uncover<4->{
+        \begin{align*}
+          \infer{\Sstep{(s, X)}{(s', X')}}{\Sstep{(C[s], X)}{(C[s], X')}}
+        \end{align*}}
     \end{column}
   \end{columns}
-
-  Ask me about Coq after!
+  \vfill{}
+  \uncover<+->{Ask me about Coq after!}
 \end{frame}
 
 \section{Extending the Framework}
@@ -257,27 +292,29 @@ style=authoryear-comp,
 \begin{frame}{Parallelism}
   \begin{columns}[t]
     \begin{column}{.6\textwidth}
-      \begin{itemize}
+      \begin{itemize}[<+->]
         \item Shared memory
         \item Parallel composition
-        \item Extra context for branching
+        \item Extra context
         \item Correctness and completeness still hold!
       \end{itemize}
+      \uncover<3->{
+        \begin{align*}
+          C ::&= \faded{\square \mid C~;~s}\\
+              &\faded[100]{\mid C~|\!|~s}\\
+              &\faded[100]{\mid s~|\!|~C}
+        \end{align*}}
     \end{column}
     \begin{column}{.4\textwidth}
-      \begin{align*}
-        C ::&= \faded{\square \mid C~;~s}\\
-            &\faded[100]{\mid C~|\!|~s}\\
-            &\faded[100]{\mid s~|\!|~C}
-      \end{align*}
-      \begin{align*}
-        s ::&= \faded{x := e}\\
-            &\faded{\mid s~;~s}\\
-            &\faded[100]{\mid s~|\!|~s}\\
-            &\faded{\mid \ifs~e~\{s\}~\{s\}}\\
-            &\faded{\mid \whiles~e~\{s\}}\\
-            &\faded{\mid \skips}
-      \end{align*}
+      \uncover<2->{
+        \begin{align*}
+          s ::&= \faded{x := e}\\
+              &\faded{\mid s~;~s}\\
+              &\faded[100]{\mid s~|\!|~s}\\
+              &\faded{\mid \ifs~e~\{s\}~\{s\}}\\
+              &\faded{\mid \whiles~e~\{s\}}\\
+              &\faded{\mid \skips}
+        \end{align*}}
     \end{column}
   \end{columns}
 \end{frame}
@@ -285,46 +322,48 @@ style=authoryear-comp,
 \subsection{Trace Semantics}
 
 \begin{frame}{Why Trace Semantics}
-  \begin{itemize}
+  \begin{itemize}[<+->]
     \item Expressive
 
-  Consider \texttt{x := x + 1 |\!| x := x + 2}
-  \[\sigma[x := x + 1][x := x + 2] = \sigma[x := x + 3] = \sigma[x := x + 2][x := x + 1]\]
-  but $(x := x + 1) \curvearrowright (x := x + 2) \ne (x := x + 2) \curvearrowright (x := x + 1)$
-    \item Compositional~\parencite{din2022lagc}
-    \item \alert{Partial Order Reduction~\parencite{boer2020sympaths}}
+          Consider \texttt{x := x + 1 |\!| x := x + 2}
+          \[\sigma[x := x + 1][x := x + 2] = \sigma[x := x + 3] = \sigma[x := x + 2][x := x + 1]\]
+          but $(x := x + 1) \curvearrowright (x := x + 2) \ne (x := x + 2) \curvearrowright (x := x + 1)$
+    \item Compositional (Locally Abstract -- Globally Concrete,~\cite{din2022lagc})
+    \item Partial Order Reduction~(SymPaths,~\cite{boer2020sympaths})
   \end{itemize}
 \end{frame}
 
-\begin{frame}{Adapting de Boer and Bonsangue's work to traces}
+\begin{frame}{Traces}
   \begin{columns}
     \begin{column}{.5\textwidth}
-      \begin{itemize}
+      \begin{itemize}[<+->]
         \item Symbolic events: assignments and boolean guards
         \item Concrete events: assignments
-        \item Final states and pc
+        \item Final states
+        \item Path condition
         \item Abstraction
       \end{itemize}
     \end{column}
     \begin{column}{.5\textwidth}
       \begin{align*}
-        \tau^{S} ::&= [~] \mid \tau^{S} :: (x := e) \mid \tau^{S} :: e\\
-        \tau^{C} ::&= [~] \mid \tau^{C} :: (x := e)
+        \uncover<1->{\tau^{S} ::&= [~] \mid \tau^{S} :: (x := e) \mid \tau^{S} :: e\\}
+        \uncover<2->{\tau^{C} ::&= [~] \mid \tau^{C} :: (x := e)}
       \end{align*}
       \begin{align*}
-        \accC[V]{\tau^{C}} &\triangleq \fold~\update~V~\tau^{C}\\
-        \accS[\sigma]{\tau^{S}} &\triangleq \fold~\update~\sigma~\tau^{S}\\
-        \pc{\tau^{S}} &\triangleq \fold~\land~\true~\tau^{S} \; \text{(sort of)}
+        \uncover<3->{\accC[V]{\tau^{C}} &\triangleq \fold~\update~V~\tau^{C}\\
+        \accS[\sigma]{\tau^{S}} &\triangleq \fold~\update~\sigma~\tau^{S}\\}
+        \uncover<4->{\pc{\tau^{S}} &\triangleq \fold~\land~\true~\tau^{S} \; \text{(sort of)}}
       \end{align*}
-      \begin{align*}
-        \tau^{S}~V\text{-abstracts}~\tau^{C} \triangleq \accC[V]{\tau^{C}} = V \circ \accS[id]{\tau^{S}}
-      \end{align*}
+      \uncover<5->{
+        \begin{align*}
+          \tau^{S}~V\text{-abstracts}~\tau^{C} \triangleq \accC[V]{\tau^{C}} = V \circ \accS[id]{\tau^{S}}
+        \end{align*}}
     \end{column}
   \end{columns}
 \end{frame}
 
 \begin{frame}{Transition System}
-  \begin{itemize}
+  \begin{itemize}[<+->]
     \item Symbolic $\Sstar{(s, \tau^{S})}{(s', \tau'^{S})}$
           \begin{align*}
             &\Sstep{(x := e, \tau^{S})}{(\skips, \tau^{S} :: (x :=  e))}\\
@@ -340,15 +379,16 @@ style=authoryear-comp,
 
 \begin{frame}{Bisimulation}
   \begin{figure}
+    \usetikzlibrary{cd}
     \begin{tikzcd}[ampersand replacement=\&]% <--- otherwise Beamer breaks without [fragile]
       {(s, \tau_{0}^{S})} \arrow[rr] \arrow[dd, "V-abstracts"', no head, dashed] \&  \& {(s', \tau^{S})} \arrow[dd, "V-abstracts", no head, dashed] \\
       \&  \&                                                             \\
       {(s, \tau_{0}^{C})} \arrow[rr, Rightarrow]                                \&  \& {(s', \tau^{C})}
     \end{tikzcd}
-  %   \begin{mathpar}
-  %   \tau^{S}_{0}~V\mbox{-abstracts}~\tau^{C}_{0} \and
-  %   \tau^{S}~V\mbox{-abstracts}~\tau^{C} \and
-  %   \end{mathpar}
+    % \begin{mathpar}
+    %   \tau^{S}_{0}~V\mbox{-abstracts}~\tau^{C}_{0} \and
+    %   \tau^{S}~V\mbox{-abstracts}~\tau^{C} \and
+    % \end{mathpar}
   \end{figure}
   \vfill{}
   \begin{theorem}[Bisimulation]
@@ -379,27 +419,27 @@ style=authoryear-comp,
 \section{Summary and Conclusion}
 
 \begin{frame}{Summary}
-  \begin{itemize}
+  \begin{itemize}[<+->]
     \item Symbolic Execution Formally Explained, Formalized
     \item Extended with:
           \begin{itemize}
-            \item Contexts
-            \item Parallel Composition
-            \item Trace Semantics
+            \item<.-> Contexts
+            \item<.-> Parallel Composition
+            \item<.-> Trace Semantics
           \end{itemize}
   \end{itemize}
 \end{frame}
 
 \begin{frame}{Future}
-  \begin{itemize}
+  \begin{itemize}[<+->]
     \item Generalize
           \begin{itemize}
             \item Language features
             \item Semantics / trace events
             \item Different notions of abstraction
           \end{itemize}
-    \item \alert{Partial Order Reduction}
     \item Composition à la LAGC
+    \item \alert{Partial Order Reduction}
   \end{itemize}
 \end{frame}
 
