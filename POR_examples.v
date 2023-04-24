@@ -10,7 +10,7 @@ Import TraceSemantics.
 From SymEx Require Import Maps.
 Import BasicMaps.
 
-From SymEx Require Import ContextReduction PartialOrderReduction.
+From SymEx Require Import TraceSemantics PartialOrderReduction InterferenceFreedom.
 
 Open Scope com_scope.
 Open Scope trace_scope.

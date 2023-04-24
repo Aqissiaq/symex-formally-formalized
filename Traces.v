@@ -59,16 +59,6 @@ Proof.
   - exists a. exists t. reflexivity.
 Qed.
 
-Theorem app_eq_nil {A:Type} (x y:trace A) : x ++ y = [] -> x = [] /\ y = [].
-Proof.
-  induction y; induction x; intro; split;
-    try (rewrite app_nil_r in H);
-    try (rewrite app_nil_l in H);
-    try reflexivity;
-    try assumption;
-    discriminate.
-Qed.
-
 Theorem cons_neq {A:Type} (x:trace A) (y:A) : x::y <> x.
 Proof. induction x.
        - apply cons_not_empty.
@@ -78,50 +68,37 @@ Qed.
 Theorem cons_neq' {A:Type} (x:trace A) (y:A) : x <> x::y.
 Proof. intro. symmetry in H. exact (cons_neq _ _  H). Qed.
 
-Lemma peel_off' {A:Type} (t:trace A) (a:A) : exists x t', t::a = [x] ++ t'.
-Proof.
-  intros. induction t.
-  - exists a. exists []. reflexivity.
-  - destruct IHt as [x [t' IH]]. destruct t'; inversion IH; subst.
-    + exists a0. exists [x]. reflexivity.
-    + exists x. exists ((t' :: a0 ):: a1). reflexivity.
-Qed.
+Module IndependenceEquiv.
+  (** generic equivalence stuff *)
+  Inductive permute_events {X: Type} (IF: relation X): relation (trace X) :=
+    | pe_refl: forall t, permute_events IF t t
+    | pe_sym: forall t t', permute_events IF t t' -> permute_events IF t' t
+    | pe_trans: forall t1 t2 t3,
+        permute_events IF t1 t2 -> permute_events IF t2 t3 -> permute_events IF t1 t3
+    | pe_interference_free: forall t t' e1 e2,
+        IF e1 e2 ->
+        permute_events IF ((((t :: e1) :: e2)) ++ t') ((((t :: e2) :: e1)) ++ t')
+  .
 
-Theorem peel_off {A:Type} (t:trace A) : t <> [] -> exists x t', t = [x] ++ t'.
-Proof.
-  intros. destruct (not_empty_cons _ H) as [x [t' H']].
-  rewrite H'. apply peel_off'.
-Qed.
+  Global Instance trace_eq_refl {X: Type} {r: relation X}: Reflexive (permute_events r).
+  Proof. intro. apply pe_refl. Qed.
 
-(* generic equivalence stuff *)
-Inductive permute_events {X: Type} (IF: relation X): relation (trace X) :=
-  | pe_refl: forall t, permute_events IF t t
-  | pe_sym: forall t t', permute_events IF t t' -> permute_events IF t' t
-  | pe_trans: forall t1 t2 t3,
-      permute_events IF t1 t2 -> permute_events IF t2 t3 -> permute_events IF t1 t3
-  | pe_interference_free: forall t t' e1 e2,
-      IF e1 e2 ->
-      permute_events IF ((((t :: e1) :: e2)) ++ t') ((((t :: e2) :: e1)) ++ t')
-.
+  Global Instance trace_eq_sym {X: Type} {r: relation X}: Symmetric (permute_events r).
+  Proof. intro. apply pe_sym. Qed.
 
-Global Instance trace_eq_refl {X: Type} {r: relation X}: Reflexive (permute_events r).
-Proof. intro. apply pe_refl. Qed.
+  Global Instance trace_eq_trans {X: Type} {r: relation X}: Transitive (permute_events r).
+  Proof. intro. apply pe_trans. Qed.
 
-Global Instance trace_eq_sym {X: Type} {r: relation X}: Symmetric (permute_events r).
-Proof. intro. apply pe_sym. Qed.
-
-Global Instance trace_eq_trans {X: Type} {r: relation X}: Transitive (permute_events r).
-Proof. intro. apply pe_trans. Qed.
-
-Lemma path_equiv_extend {X:Type}: forall r t t' (x: X),
-    permute_events r t t' -> permute_events r (t :: x) (t' :: x).
-Proof.
-  intros. induction H.
-  - reflexivity.
-  - symmetry. assumption.
-  - transitivity (t2::x); assumption.
-  - rewrite 2 app_comm_cons. apply pe_interference_free. assumption.
-Qed.
+  Lemma path_equiv_extend {X:Type}: forall r t t' (x: X),
+      permute_events r t t' -> permute_events r (t :: x) (t' :: x).
+  Proof.
+    intros. induction H.
+    - reflexivity.
+    - symmetry. assumption.
+    - transitivity (t2::x); assumption.
+    - rewrite 2 app_comm_cons. apply pe_interference_free. assumption.
+  Qed.
+End IndependenceEquiv.
 
 Module TraceSemantics.
   (** Symbolic *)
@@ -191,6 +168,7 @@ Module TraceSemantics.
     forall x e b s, r (Asgn__S x e) (Cond b) ->
       Bapply (x !-> Aapply s e; s) b = Bapply s b.
 
+  Import IndependenceEquiv.
   (* if r allows simultaneous substitution, then equiv_acc_subst *)
   Theorem equiv_acc_subst_generic (r: relation trace_step__S) (sim_subst: sim_subst r):
     forall s t t',

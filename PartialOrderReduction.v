@@ -11,223 +11,59 @@ Import TraceSemantics.
 From SymEx Require Import Maps.
 Import BasicMaps.
 
-From SymEx Require Import ContextReduction.
+From SymEx Require Import TraceSemantics.
 
 Open Scope com_scope.
 Open Scope string_scope.
 Open Scope trace_scope.
 
-Ltac splits := repeat (try split).
-
 (** Symbolic POR *)
-Fixpoint contains__A (e:Aexpr) (x:Var) : Prop :=
-  match e with
-  | AConst _ => False
-  | AVar y => x = y
-  | <{e1 + e2}> => contains__A e1 x \/ contains__A e2 x
-  end.
-
-(* idk, but this seems like it might be useful *)
-Lemma contains_dec__A: forall x e, contains__A e x \/ ~ (contains__A e x).
-Proof.
-  induction e.
-  - right. auto.
-  - destruct (String.eqb_spec x x0); subst.
-    + left. reflexivity.
-    + right. unfold contains__A. assumption.
-  - destruct IHe1.
-    + left. left. assumption.
-    + destruct IHe2.
-      * left. right. assumption.
-      * right. intro. destruct H1; auto.
-Qed.
-
-Fixpoint contains__B (e:Bexpr) (x:Var) : Prop :=
-  match e with
-  | BTrue => False
-  | BFalse => False
-  | <{ ~ b }> => contains__B b x
-  | <{ b1 && b2 }> => contains__B b1 x \/ contains__B b2 x
-  | <{ a1 <= a2 }> => contains__A a1 x \/ contains__A a2 x
-  end.
-
-Lemma contains_dec__B: forall x e, contains__B e x \/ ~ (contains__B e x).
-Proof.
-  induction e.
-  - right; auto.
-  - right; auto.
-  - destruct IHe.
-    + left; auto.
-    + right; auto.
-  - destruct IHe1.
-    + left. left. apply H.
-    + destruct IHe2.
-      * left. right. apply H0.
-      * right. intro. destruct H1; auto.
-  - destruct (contains_dec__A x a1).
-    + left. left. apply H.
-    + destruct (contains_dec__A x a2).
-      * left. right. apply H0.
-      * right. intro. destruct H1; auto.
-Qed.
-
-Definition reads_var (s:trace_step__S) (x:Var) : Prop :=
-  match s with
-  | Asgn__S _ e => contains__A e x
-  | Cond b => contains__B b x
-  end.
-
-Definition writes_var (s:trace_step__S) (x:Var) : Prop :=
-  match s with
-  | Asgn__S y e => x = y
-  | Cond b => False
-  end.
-
-Definition interference_free__S: relation trace_step__S :=
-  fun s1 s2 =>
-    forall x,
-      ~ (reads_var s1 x /\ writes_var s2 x) /\
-      ~ (writes_var s1 x /\ reads_var s2 x) /\
-      ~ (writes_var s1 x /\ writes_var s2 x).
-
-Global Instance sym_interference_free__S : Symmetric interference_free__S.
-Proof.
-  unfold interference_free__S. intros s1 s2 H x. specialize (H x). splits.
-  - destruct H as [_ [contra _]]. intro. destruct H. apply contra. splits; assumption.
-  - destruct H as [contra [_ _]]. intro. destruct H. apply contra. splits; assumption.
-  - destruct H as [_ [_ contra]]. intro. destruct H. apply contra. splits; assumption.
-Qed.
-
-Lemma no_touch__A: forall s e x a, ~ (contains__A a x) -> Aapply (x !-> e ; s) a = Aapply s a.
-Proof.
-  induction a; intro.
-  - reflexivity.
-  - unfold contains__A in H. apply update_neq. assumption.
-  - simpl. rewrite IHa1, IHa2.
-    + reflexivity.
-    + intro. apply H. right. assumption.
-    + intro. apply H. left. assumption.
-Qed.
-
-Lemma no_touch__B: forall s e x b, ~ (contains__B b x) -> Bapply (x !-> e ; s) b = Bapply s b.
-Proof.
-  induction b; intro;
-    try reflexivity.
-  - simpl in *. rewrite IHb; [reflexivity | assumption].
-  - simpl in *. rewrite IHb1, IHb2.
-    + reflexivity.
-    + intro. apply H. right. assumption.
-    + intro. apply H. left. assumption.
-  - simpl. rewrite (no_touch__A _ _ x a1), (no_touch__A _ _ x a2).
-    + reflexivity.
-    + intro. apply H. right. assumption.
-    + intro. apply H. left. assumption.
-Qed.
-
-Lemma IF_apply: forall s x x' e e',
-    interference_free__S (Asgn__S x e) (Asgn__S x' e') ->
-    Aapply (x !-> Aapply s e; s) e' = Aapply s e'.
-Proof.
-  intros.
-  assert (no_contains: ~ (contains__A e' x)). {
-    destruct (H x) as [_ [Hcontains _]]. intro contra. apply Hcontains.
-    split; [reflexivity | assumption].
-  }
-  apply (no_touch__A _ _ _ _ no_contains).
-Qed.
-
-Lemma IF_asgn_cond: forall x e b s,
-    interference_free__S (Asgn__S x e) (Cond b) ->
-    Bapply (x !-> Aapply s e; s) b = Bapply s b.
-Proof.
-  intros. apply no_touch__B.
-  specialize (H x). destruct H as [_ [H _]]. intro contra.
-  apply H. split; [reflexivity | assumption].
-Qed.
-
-Lemma IF_simultaneous_subst: forall s x x' e e',
-    interference_free__S (Asgn__S x e) (Asgn__S x' e') ->
-    (x' !-> Aapply (x !-> Aapply s e; s) e'; x !-> Aapply s e; s) =
-    (x !-> Aapply (x' !-> Aapply s e'; s) e; x' !-> Aapply s e'; s).
-Proof.
-  intros.
-  assert (different_vars: x <> x'). {
-    destruct (H x) as [_ [_ Hw]]. intro. apply Hw. subst. split; reflexivity.
-  }
-  assert (H': interference_free__S (Asgn__S x' e') (Asgn__S x e)) by (symmetry; assumption).
-  rewrite (IF_apply _ _ _ _ _ H).
-  rewrite (IF_apply _ _ _ _ _ H').
-  rewrite (update_comm _ _ _ _ _ different_vars).
-  reflexivity.
-Qed.
-
-Example independent_inc: forall s,
-    (X !-> Aapply (X !-> Aapply s <{X + 1}>; s) <{X + 1}>; X !-> Aapply s <{X + 1}>; s) =
-    (X !-> Aapply (X !-> Aapply s <{X + 1}>; s) <{X + 1}>; X !-> Aapply s <{X + 1}>; s).
-Proof. intro. reflexivity. Qed.
-
-Definition path_equiv__S: relation trace__S := permute_events interference_free__S.
+Definition path_equiv__S: relation trace__S :=
+  fun t t' => (forall s, acc_subst s t = acc_subst s t') /\ forall V, Beval V (pc t) = Beval V (pc t').
 Notation " t '~' t' " := (path_equiv__S t t') (at level 40).
 
+Global Instance trace_eq_refl: Reflexive path_equiv__S.
+Proof. intro. unfold path_equiv__S. split; reflexivity. Qed.
+
+Global Instance trace_eq_sym: Symmetric path_equiv__S.
+Proof. unfold path_equiv__S, Symmetric. intros. edestruct H as [Hsubst Hpc]. split; symmetry;
+         [apply Hsubst | apply Hpc].
+Qed.
+
+Global Instance trace_eq_trans: Transitive path_equiv__S.
+Proof. unfold path_equiv__S, Transitive. intros.
+       edestruct H as [Hsubst Hpc].
+       edestruct H0 as [Hsubst0 Hpc0].
+       split; intros.
+       - transitivity (acc_subst s y);
+           [ apply Hsubst | apply Hsubst0].
+       - transitivity (Beval V (pc y));
+           [ apply Hpc |  apply Hpc0].
+Qed.
+
+Lemma path_equiv_extend: forall t t' e,
+    path_equiv__S t t' -> path_equiv__S (t :: e) (t' :: e).
+Proof.
+  intros. unfold path_equiv__S in *. intros.
+  edestruct H as [Hsubst Hpc]. split; intros.
+  - destruct e; simpl; rewrite Hsubst; reflexivity.
+  - destruct e; simpl; rewrite Hpc.
+    + reflexivity.
+    + unfold Bapply_t. rewrite Hsubst. reflexivity.
+Qed.
+
 Theorem equiv_acc_subst: forall s t t', t ~ t' -> acc_subst s t = acc_subst s t'.
-Proof. apply (equiv_acc_subst_generic _ IF_simultaneous_subst). Qed.
+Proof. intros. edestruct H as [Hsubst _]. apply Hsubst. Qed.
 
 Theorem equiv_pc: forall V t t', t ~ t' -> Beval V (pc t) = true <-> Beval V (pc t') = true.
-Proof. apply (equiv_pc_generic _ _ IF_simultaneous_subst IF_asgn_cond). Qed.
-
-(* Framing, because it shows up in several proofs *)
-(*
-  Framing corresponds to accumulated substitutions with different initial states
-  when working with (this style of) traces. We will see how hard/easy that is to incorporate
-
-  Turns out we can make do without
-*)
-
-(* This is not quite confluence, but kind of step-wise *)
-Lemma parallel_steps: forall s1 s2 s1' s2' t e1 e2,
-    red__S (t, <{s1 || s2}>) (t :: e1, <{s1' || s2}>) ->
-    red__S (t, <{s1 || s2}>) (t :: e2, <{s1 || s2'}>) ->
-    red__S (t :: e1, <{s1' || s2}>) ((t :: e1) :: e2, <{s1' || s2'}>) /\
-    red__S (t :: e2, <{s1 || s2'}>) ((t :: e2) :: e1, <{s1' || s2'}>)
-.
-Proof.
-  split.
-  - dependent destruction H0. dependent destruction H1;
-      inversion x0; inversion x; subst.
-    + dependent destruction H0;
-        apply cons_neq' in x; contradiction.
-    + dependent destruction H0;
-        apply context_injective in H5; try discriminate; try assumption; symmetry in H5;
-        [ apply SIf_true_disjoint in H5
-        | apply SIf_false_disjoint in H5
-        | apply SSeq_disjoint in H5];
-        contradiction.
-    + dependent destruction H0;
-        try (apply cons_neq' in x; contradiction);
-        try (apply ctx_red_intro with (C := fun s => SPar s1' (C s));
-             [constructor | constructor; assumption]).
-  - dependent destruction H. dependent destruction H0;
-      inversion x0; inversion x; subst.
-    + dependent destruction H;
-        apply cons_neq' in x; contradiction.
-    + dependent destruction H;
-        try (apply cons_neq' in x; contradiction);
-        try (apply ctx_red_intro with (C := fun s => SPar (C s) s2');
-             [constructor | constructor; assumption]).
-    + dependent destruction H;
-        apply context_injective in H6; try assumption; apply symmetry in H6;
-        try discriminate;
-        [ apply SIf_true_disjoint in H6
-        | apply SIf_false_disjoint in H6
-        | apply SSeq_disjoint in H6];
-        contradiction.
-Qed.
+Proof. intros. edestruct H as [_ Hpc]. rewrite Hpc. reflexivity. Qed.
 
 Lemma equiv_step: forall s t1 s' t1' t2,
     t1 ~ t2 -> red__S (t1, s) (t1', s') ->
     exists t2', red__S (t2, s) (t2', s') /\ t1' ~ t2'.
 Proof.
-  intros. inversion H0; subst. inversion H4; subst; eexists; split;
+  intros. inversion H0; subst.
+  inversion H4; subst; eexists; split;
     try (constructor; [constructor | assumption]);
     try (apply path_equiv_extend);
     assumption.
@@ -282,7 +118,7 @@ Corollary correctness__POR: forall s0 t0 s t,
     exists t', red_star__S (t0, s0) (t', s) /\ t ~ t'.
 Proof.
   intros. dependent induction H.
-  - exists t. split; constructor.
+  - exists t. split; constructor; reflexivity.
   - destruct y. destruct (IHclos_refl_trans_n1 s0 t0 s1 t1) as [t' [IHcomp IHequiv]];
       try reflexivity.
     destruct (bisim__POR s1 s t1 t' IHequiv) as [bisim_correct _].
@@ -300,7 +136,7 @@ Corollary completeness__POR: forall t0 s0 t s,
         /\ t ~ t'.
 Proof.
   intros. dependent induction H.
-  - exists t. split; constructor.
+  - exists t. split; constructor; reflexivity.
   - destruct y.
     destruct (IHclos_refl_trans_n1 t0 s0 t1 s1) as [t' [IHcomp IHequiv]];
       try reflexivity.
@@ -314,32 +150,27 @@ Proof.
 Qed.
 
 (** Concrete POR *)
-Definition interference_free__C: relation (Var * Aexpr) :=
-  fun p1 p2 => let (x1, e1) := p1 in
-            let (x2, e2) := p2 in
-            x1 <> x2 /\ ~ (contains__A e1 x2) /\ ~ (contains__A e2 x1).
-
-Definition path_equiv__C: relation trace__C := permute_events interference_free__C.
+Definition path_equiv__C: relation trace__C := fun t t' => forall V, acc_val V t = acc_val V t'.
 Notation " t '≃' t' " := (path_equiv__C t t') (at level 40).
 
-Lemma no_touch_Aeval: forall V v x a, ~ (contains__A a x) -> Aeval (x !-> v ; V) a = Aeval V a.
-Proof.
-  induction a; intro.
-  - reflexivity.
-  - unfold contains__A in H. apply update_neq. assumption.
-  - simpl. rewrite IHa1, IHa2.
-    + reflexivity.
-    + intro. apply H. right. assumption.
-    + intro. apply H. left. assumption.
+Theorem equiv_acc_val: forall V0 t t', t ≃ t' -> acc_val V0 t = acc_val V0 t'.
+Proof. intros. apply H. Qed.
+
+Theorem path_equiv_extend__C: forall t t' e, t ≃ t' -> (t :: e) ≃ (t' :: e).
+Proof. intros. unfold path_equiv__C. intro. destruct e. simpl.
+       rewrite H. reflexivity.
 Qed.
 
-Theorem equiv_acc_val: forall V0 t t', t ≃ t' -> acc_val V0 t = acc_val V0 t'.
-Proof. apply equiv_acc_val_generic. unfold sim_subst__C. intros.
-       destruct H as [H1 [H2 H3]].
-       rewrite (update_comm _ _ _ _ _ H1).
-       rewrite (no_touch_Aeval _ _ _ _ H2).
-       rewrite (no_touch_Aeval _ _ _ _ H3).
-       reflexivity.
+Global Instance trace_eq_refl__C: Reflexive path_equiv__C.
+Proof. intros x V. reflexivity. Qed.
+
+Global Instance trace_eq_sym__C: Symmetric path_equiv__C.
+Proof. unfold path_equiv__C, Symmetric. intros. symmetry. apply H. Qed.
+
+Global Instance trace_eq_trans__C: Transitive path_equiv__C.
+Proof. unfold path_equiv__C, Transitive. intros.
+       transitivity (acc_val V y);
+         [apply H | apply H0].
 Qed.
 
 Lemma equiv_step__C: forall V0 s t1 s' t1' t2,
@@ -364,7 +195,7 @@ Proof.
   (* assignment *)
   eexists. split.
   - constructor; [constructor | assumption].
-  - apply path_equiv_extend; assumption.
+  - apply path_equiv_extend__C; assumption.
 Qed.
 
 Corollary equiv_star__C: forall V0 s t1 s' t1' t2,
@@ -470,7 +301,7 @@ Proof.
   (* I suppose I could do this directly, but c'mon *)
   destruct (bisimulation V s s' t0 t0' H) as [complete correct].
   destruct (bisim__POR s s' t0' t0' (trace_eq_refl t0')) as [PORcomplete PORcorrect].
-  destruct (bisim__PORC V s s' t0 t0 (trace_eq_refl t0)) as [PORCcomplete PORCcorrect].
+  destruct (bisim__PORC V s s' t0 t0 (trace_eq_refl__C t0)) as [PORCcomplete PORCcorrect].
 
   split; intros.
   - destruct (PORCcomplete t H0) as [t' [Ccomp Cequiv]].
@@ -569,7 +400,7 @@ Proof.
     destruct (PORcorrect ts Scomp) as [t__POR [PORcomp Hequiv]].
     exists t__POR. split.
     + apply PORcomp.
-    + apply (equiv_is_abstraction V ts t__POR t t Hequiv (trace_eq_refl t) Habs).
+    + apply (equiv_is_abstraction V ts t__POR t t Hequiv (trace_eq_refl__C t) Habs).
   - destruct H0. destruct (PORcomplete t H0) as [t__POR [PORcomp Hequiv]].
     destruct (correct t__POR) as [tc [Ccomp Habs]]. split.
     + apply PORcomp.

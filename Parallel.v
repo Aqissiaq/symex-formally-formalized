@@ -1,8 +1,6 @@
 (** * Parallelism *)
 
-(** We construct a very simple programming language with a parallel construct,
-but without much else for now. The intent is to implement trace semantics.
-*)
+(** We construct a very simple programming language with parallel composition *)
 
 From Coq Require Import Strings.String.
 From Coq Require Import Bool.Bool.

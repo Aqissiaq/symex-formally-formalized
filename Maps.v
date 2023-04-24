@@ -126,7 +126,7 @@ Module BasicMaps.
   Definition Comp (V:Valuation) (s:string -> Aexpr) : Valuation :=
     fun x => Aeval V (s x).
 
-  (** Lemma 2.1 *)
+  (** de Boer & Bonsange: Lemma 2.1 *)
   Lemma comp_sub : forall V s e,
       Aeval (Comp V s) e = Aeval V (Aapply s e).
   Proof.
@@ -144,7 +144,7 @@ Module BasicMaps.
       reflexivity.
   Qed.
 
-  (* Corollary 2.2 *)
+  (** de Boer & Bonsange: Corollary 2.2 *)
   Lemma asgn_sound : forall V s x e,
       Comp V (update s x (Aapply s e)) = update (Comp V s) x (Aeval (Comp V s) e).
   Proof. intros. extensionality y.

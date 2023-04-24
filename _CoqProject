@@ -3,9 +3,10 @@
 Expr.v
 Maps.v
 Traces.v
-
 Parallel.v
-ContextReduction.v
+
+TraceSemantics.v
 PartialOrderReduction.v
 
+InterferenceFreedom.v
 POR_examples.v
