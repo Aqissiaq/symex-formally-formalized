@@ -39,33 +39,3 @@ Module BasicExpr.
   Definition Z : string := "z".
 
 End BasicExpr.
-
-Module ProcedureExpr.
-  Definition LVar := string.
-  Definition GVar := string.
-
-  Inductive Aexpr : Type :=
-  | AConst (n:nat)
-  | AGVar (x:GVar)
-  | ALVar (x:LVar)
-  | APlus (a1 a2:Aexpr).
-
-  Coercion AConst : nat >-> Aexpr.
-  Coercion AGVar : GVar >-> Aexpr.
-  Coercion ALVar : LVar >-> Aexpr.
-
-  Inductive Bexpr : Type :=
-  | BTrue
-  | BFalse
-  | BNot (b:Bexpr)
-  | BAnd (b1 b2:Bexpr)
-  | BLeq (a1 a2:Aexpr).
-
-  Notation "<{ e }>" := e (at level 0, e custom com at level 99) : com_scope.
-  Notation "( x )" := x (in custom com, x at level 99) : com_scope.
-  Notation "x" := x (in custom com at level 0, x constr at level 0) : com_scope.
-  Notation "x + y"   := (APlus x y) (in custom com at level 70, no associativity).
-  Notation "x <= y"   := (BLeq x y) (in custom com at level 70, no associativity).
-  Notation "'~' b"   := (BNot b) (in custom com at level 75, right associativity).
-  Notation "x && y"  := (BAnd x y) (in custom com at level 80, left associativity).
-End ProcedureExpr.
