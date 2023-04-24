@@ -128,8 +128,18 @@ Department of Informatics}
   \titlepage%
 \end{frame}
 
-\begin{frame}
-  \tableofcontents%
+% \begin{frame}
+%   \tableofcontents%
+% \end{frame}
+%
+\begin{frame}{Motivation}
+  Symbolic execution for concurrent programs
+  \begin{itemize}[<+->]
+    \item Scaling problems (and solutions)
+    \item Formal model -- correctness and completeness
+  \end{itemize}
+  \vfill{}
+  \uncover<+->{This is work in progress!}
 \end{frame}
 
 \section{Symbolic Execution Formally Explained}
@@ -151,7 +161,7 @@ Department of Informatics}
         \item<+-> Challenges:
               \begin{itemize}
                 \item Formalism
-                \item Scaling and concurrency
+                \item \alert{Scaling with concurrency}
                 \item \faded{Non-termination}
               \end{itemize}
       \end{itemize}
@@ -436,20 +446,20 @@ Department of Informatics}
   \end{itemize}
 \end{frame}
 
-\section{Summary and Conclusion}
+\section{Summary}
 
-\begin{frame}{Future Work}
-  \begin{itemize}[<+->]
-    \item \alert{Partial Order Reduction}
-    \item Composition
-    \item Generalizations
-          \begin{itemize}
-            \item Language features
-            \item Semantics / trace events
-            \item Different notions of abstraction
-          \end{itemize}
-  \end{itemize}
-\end{frame}
+% \begin{frame}{Future Work}
+%   \begin{itemize}[<+->]
+%     \item \alert{Partial Order Reduction}
+%     \item Composition
+%     \item Generalizations
+%           \begin{itemize}
+%             \item Language features
+%             \item Semantics / trace events
+%             \item Different notions of abstraction
+%           \end{itemize}
+%   \end{itemize}
+% \end{frame}
 
 \begin{frame}{Summary}
   \begin{itemize}[<+->]
@@ -461,6 +471,11 @@ Department of Informatics}
             \item<.-> Contexts
           \end{itemize}
     \item Future directions
+          \begin{itemize}
+            \item<.-> Partial Order Reduction
+            \item<.-> Compositionality
+            \item<.-> Language features
+          \end{itemize}
   \end{itemize}
   \vfill{}
   \uncover<+->{\center{Thank you, questions?}}
