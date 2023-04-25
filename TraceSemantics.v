@@ -23,7 +23,7 @@ Ltac splits := repeat (try split).
 (** Generalized context unfolding *)
 (** idea from: https://xavierleroy.org/cdf-mech-sem/CDF.FUN.html *)
 (** S is on the right because the associativity makes it simpler when X is a product type*)
-Inductive context_red {X S:Type} (context: (S -> S) -> Prop) (head_red: relation (X * S)): relation (X * S) :=
+Variant context_red {X S:Type} (context: (S -> S) -> Prop) (head_red: relation (X * S)): relation (X * S) :=
 | ctx_red_intro: forall C x x' s s',
     head_red (x, s) (x', s') -> context C ->
     context_red context head_red (x, C s) (x', C s').
@@ -45,7 +45,7 @@ Proof.
 Qed.
 
 (** Symbolic Semantics *)
-Inductive head_red__S: (trace__S * Stmt) -> (trace__S * Stmt) -> Prop :=
+Variant head_red__S: (trace__S * Stmt) -> (trace__S * Stmt) -> Prop :=
 | head_red_asgn__S: forall t x e,
     head_red__S (t, <{ x := e }>) (t :: Asgn__S x e, SSkip)
 | head_red_cond_true__S: forall t b s1 s2,
@@ -67,7 +67,7 @@ Definition red_star__S := clos_refl_trans_n1 _ red__S.
 
 (** Concrete Semantics *)
 
-Inductive head_red__C (V0:Valuation): (trace__C * Stmt) -> (trace__C * Stmt) -> Prop :=
+Variant head_red__C (V0:Valuation): (trace__C * Stmt) -> (trace__C * Stmt) -> Prop :=
 | head_red_asgn__C: forall t x e,
     head_red__C V0 (t, <{ x := e }>) (t :: (x, e), SSkip)
 | head_red_cond__C: forall t b s1 s2,

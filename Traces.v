@@ -104,7 +104,7 @@ Module TraceSemantics.
   (** Symbolic *)
   Definition Var: Type := string.
 
-  Inductive trace_step__S : Type :=
+  Variant trace_step__S : Type :=
   | Asgn__S (x:Var) (e:Aexpr)
   | Cond (b:Bexpr).
 
