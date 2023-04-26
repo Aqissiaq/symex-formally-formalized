@@ -12,6 +12,7 @@ From SymEx Require Import Maps.
 Import BasicMaps.
 
 From SymEx Require Import TraceSemantics.
+From SymEx Require PartialOrderReduction.
 
 Open Scope com_scope.
 Open Scope string_scope.
@@ -140,6 +141,13 @@ Proof. apply (equiv_acc_subst_generic _ IF_simultaneous_subst). Qed.
 Theorem equiv_pc: forall V t t', t ~ t' -> Beval V (pc t) = true <-> Beval V (pc t') = true.
 Proof. apply (equiv_pc_generic _ _ IF_simultaneous_subst IF_asgn_cond). Qed.
 
+Theorem IF_equiv_is_equiv: forall t t', t ~ t' -> PartialOrderReduction.path_equiv__S t t'.
+Proof. intros. split.
+       - intro. apply (equiv_acc_subst _ _ _ H).
+       - intro. destruct (equiv_pc V _ _ H). destruct (Beval V (pc t)), (Beval V (pc t'));
+           auto. symmetry. apply H0. reflexivity.
+Qed.
+
 (* These are identical to the generic case, and should be easily generalizable when time *)
 Lemma equiv_step: forall s t1 s' t1' t2,
     t1 ~ t2 -> red__S (t1, s) (t1', s') ->
@@ -258,6 +266,9 @@ Proof. apply equiv_acc_val_generic. unfold sim_subst__C. intros.
        rewrite (no_touch_Aeval _ _ _ _ H3).
        reflexivity.
 Qed.
+
+Theorem IF_equiv_is_equiv__C: forall t t', t ≃ t' -> PartialOrderReduction.path_equiv__C t t'.
+Proof. intros t t' H V. apply (equiv_acc_val _ _ _ H). Qed.
 
 Lemma equiv_step__C: forall V0 s t1 s' t1' t2,
     t1 ≃ t2 -> red__C V0 (t1, s) (t1', s') ->
