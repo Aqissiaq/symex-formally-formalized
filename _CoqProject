@@ -3,11 +3,12 @@
 Expr.v
 Maps.v
 Traces.v
+Parallel.v
+While.v
 
 BasicConcrete.v
 Recursion.v
 TraceSemantics.v
-Parallel.v
 ParallelTraces.v
 ContextReduction.v
 BasicContextReduction.v
@@ -16,3 +17,6 @@ PartialOrderReduction.v
 Trace_examples.v
 POR_examples.v
 #Oop.v
+
+BigStep.v
+BigStepTraces.v
