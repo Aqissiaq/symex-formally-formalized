@@ -71,12 +71,29 @@ Lemma option_bind_mono: forall (X Y: Type) (x x': option X) (f f': X -> option Y
     x <<= x' -> (forall x, f x <<= f' x) -> option_bind x f <<= option_bind x' f'.
 Proof. intros. destruct H; cbn; auto with lessdef. Qed.
 
+Lemma option_inversion {X Y: Type} {x: option X} {f: X -> option Y} {y: Y}:
+    option_bind x f = Some y ->
+    exists x', x = Some x' /\ f x' = Some y.
+Proof.
+    destruct x; simpl; intros.
+    - exists x. split; auto.
+    - inversion H.
+Qed.
+
 Fixpoint loop_fuel__C (fuel: nat) (f: Valuation -> option Valuation) (b: Bexpr) (V: Valuation): option Valuation :=
          match fuel with
         | 0 => None
         | S n => if Beval V b
                 then option_bind (f V) (loop_fuel__C n f b)
                 else Some V
+        end.
+
+Fixpoint loop_count_fuel (fuel count: nat) (f: Valuation -> option Valuation) (b: Bexpr) (V: Valuation): option (Valuation * nat) :=
+         match fuel with
+        | 0 => None
+        | S n => if Beval V b
+                then option_bind (f V) (loop_count_fuel n (S count) f b)
+                else Some (V, count)
         end.
 
 Lemma loop_mono: forall i j f b V,
@@ -93,10 +110,28 @@ Proof.
         * constructor.
 Qed.
 
+Lemma loop_count_mono: forall i j n f b V,
+    i <= j -> loop_count_fuel i n f b V <<= loop_count_fuel j n f b V.
+Proof.
+    induction i; intros; simpl.
+    - constructor.
+    - destruct j.
+      + inversion H.
+      + simpl; destruct (Beval V b).
+        * apply option_bind_mono.
+          -- apply lessdef_refl.
+          -- intro. apply IHi. lia.
+        * constructor.
+Qed.
+
 (** Concrete semantics *)
 Definition loop__C (f: Valuation -> option Valuation) (b: Bexpr) (V: Valuation) : option Valuation :=
          limit (fun n => loop_fuel__C n f b V) (fun i j => loop_mono i j f b V).
 
+Definition loop_count (f: Valuation -> option Valuation) (b: Bexpr) (V: Valuation) : option (Valuation * nat) :=
+         limit (fun n => loop_count_fuel n 0 f b V) (fun i j => loop_count_mono i j 0 f b V).
+
+(*not actually used atm*)
 Inductive denot__C: Stmt -> (Valuation -> option Valuation) -> Prop :=
   | denot_skip__C: denot__C <{skip}> (fun V => Some V)
   | denot_asgn__C: forall x e,
@@ -127,11 +162,64 @@ Fixpoint denot_fun (p: Stmt) (V: Valuation): option Valuation :=
 Lemma loop_charact__C: forall f b V, exists i, forall j, i <= j -> loop_fuel__C j f b V = loop__C f b V.
 Proof. intros. apply limit_charact. Qed.
 
+Lemma loop_count_charact: forall f b V, exists i, forall j, i <= j -> loop_count_fuel j 0 f b V = loop_count f b V.
+Proof. intros. apply limit_charact. Qed.
+
+Lemma loop_count_none: forall i n f b V,
+    loop_fuel__C i f b V = None -> loop_count_fuel i n f b V = None.
+Proof.
+    induction i; intros; simpl in *.
+    - reflexivity.
+    - destruct (Beval V b), (f V).
+      + simpl in *. apply IHi. apply H.
+      + simpl. reflexivity.
+      + inversion H.
+      + inversion H.
+Qed.
+
+Lemma loop_count_increment: forall i n m f b V V',
+    loop_count_fuel i n f b V = Some (V', m) <-> loop_count_fuel i (S n) f b V = Some (V', S m).
+Proof.
+    induction i; split; intros;
+      try (simpl in H; inversion H).
+    - simpl in *. destruct (Beval V b).
+      + destruct (option_inversion H) as [? [? ?]].
+        rewrite H0. simpl. rewrite <- IHi. apply H2.
+      + inversion H. reflexivity.
+    - simpl in *. destruct (Beval V b).
+      + destruct (option_inversion H) as [? [? ?]].
+        rewrite H0. simpl. rewrite IHi. apply H2.
+      + inversion H. reflexivity.
+Qed.
+
+Lemma loop_count_correct: forall i f b V V',
+    loop_fuel__C i f b V = Some V' -> exists n, loop_count_fuel i 0 f b V = Some (V', n).
+Proof.
+    induction i; intros.
+    - simpl in H. inversion H.
+    - simpl in *. destruct (Beval V b), (f V); cbn in *.
+      + destruct (IHi _ _ _ _ H) as [n ?].
+        exists (S n). rewrite <- loop_count_increment. apply H0.
+      + inversion H.
+      + inversion H. exists 0. reflexivity.
+      + inversion H. exists 0. reflexivity.
+Qed.
+
 Lemma loop_unique__C: forall f b V i lim,
     (forall j, i <= j -> loop_fuel__C j f b V = lim) ->
     loop__C f b V = lim.
 Proof.
     intros. destruct (loop_charact__C f b V) as [i' LIM].
+    set (j := Nat.max i i').
+    rewrite <- (H j). rewrite (LIM j). reflexivity.
+    all: lia.
+Qed.
+
+Lemma loop_count_unique: forall f b V i lim,
+    (forall j, i <= j -> loop_count_fuel j 0 f b V = lim) ->
+    loop_count f b V = lim.
+Proof.
+    intros. destruct (loop_count_charact f b V) as [i' LIM].
     set (j := Nat.max i i').
     rewrite <- (H j). rewrite (LIM j). reflexivity.
     all: lia.
@@ -268,9 +356,8 @@ Qed.
 Inductive Big_Union {X} (Xs: Ensemble (Ensemble X)) : Ensemble X :=
   | Big_U_intro: forall X x, In _ Xs X -> In _ X x -> In _ (Big_Union Xs) x.
 
-Definition Union_Fam {X I} (Fs: I -> Ensemble X) : Ensemble X :=
-         let Xs : Ensemble (Ensemble X) := fun X => exists i, Fs i = X
-         in Big_Union Xs.
+Inductive Union_Fam {X I} (Fs: I -> Ensemble X): Ensemble X :=
+  | Fam_intro: forall {i x}, In _ (Fs i) x -> In _ (Union_Fam Fs) x.
 
 Fixpoint denot__S (p: Stmt): Ensemble Branch := match p with
         | <{skip}> => Singleton _ (fun V => V, Full_set _)
@@ -324,11 +411,10 @@ Lemma denot_while__S': forall b p F B,
        Intersection _ (denot__B b) (Intersection _ B (inverse_image F (Complement _ (denot__B b))))).
 Proof.
     intros. split.
-    - exists (Singleton _ (fun V => V, Complement _ (denot__B b))).
-      + exists 0. reflexivity.
-      + constructor.
-    - simpl. econstructor.
-      exists 1. simpl. eexists.
+    - apply Fam_intro with (i := 0).
+      constructor.
+    - apply Fam_intro with (i := 1).
+      simpl.
       exists (fun V => V). exists (Complement _ (denot__B b)).
       exists F. exists B. repeat split.
       + apply H.
@@ -341,10 +427,7 @@ Lemma denot_while__S: forall b p F B Floop Bloop,
    (fun V => Floop (F V), Intersection _ (denot__B b) (Intersection _ B (inverse_image F Bloop))).
 Proof.
     intros. inversion H0; subst.
-    destruct H1 as [n ?].
-    simpl. eexists.
-    exists (S n). reflexivity.
-    simpl. rewrite H1.
+    apply Fam_intro with (i := S i).
     exists Floop. exists Bloop. exists F. exists B.
     repeat split;
       try assumption.
@@ -384,15 +467,6 @@ Proof.
       + simpl. rewrite H3. reflexivity.
 Qed.
 
-Lemma option_inversion {X Y: Type} {x: option X} {f: X -> option Y} {y: Y}:
-    option_bind x f = Some y ->
-    exists x', x = Some x' /\ f x' = Some y.
-Proof.
-    destruct x; simpl; intros.
-    - exists x. split; auto.
-    - inversion H.
-Qed.
-
 Lemma intersect_subset {X: Type}: forall (A B: Ensemble X),
     Included _ A B -> A = Intersection _ A B.
 Proof.
@@ -405,44 +479,95 @@ Proof.
       apply H0.
 Qed.
 
+Lemma loop_count_monotone: forall i f b V V' n m,
+    loop_count_fuel i n f b V = Some (V', m) ->
+    n <= m.
+Proof.
+    induction i; intros.
+    - simpl in H. inversion H.
+    - simpl in H. destruct (Beval V b).
+      + destruct (option_inversion H) as [? [? ?]].
+        specialize (IHi _ _ _ _ _ _ H1). lia.
+      + inversion H. auto.
+Qed.
 
-Lemma loop_complete: forall i p b V V' body F' B',
+Lemma loop_count_zero: forall f b V V',
+    loop_count f b V = Some (V', 0) ->
+    Beval V b = false /\ V = V'.
+Proof.
+    intros. destruct (loop_count_charact f b V) as [i LIM].
+    rewrite <- LIM with (j := S i) in H; [|lia].
+    simpl in H. destruct (Beval V b) eqn:Hb, (f V).
+    + simpl in H.
+      apply loop_count_monotone in H. lia.
+    + inversion H.
+    + inversion H. split; reflexivity.
+    + inversion H. split; reflexivity.
+Qed.
+
+Lemma loop_complete: forall i p b V V',
     loop_fuel__C (S i) (denot_fun p) b V = Some V' ->
-    In _ body (F', B') ->
+    (forall Vbody Vbody',
+        denot_fun p Vbody = Some Vbody' ->
+      exists F B,
+        In _ (denot__S p) (F, B)
+        /\ F Vbody = Vbody'
+        /\ In _ B Vbody) ->
     exists F B,
-      In _ (n_fold i (loop_helper body b p) (Singleton _ (fun V => V, Complement _ (denot__B b)))) (F, B)
+      In _ (Union_Fam (fun m => n_fold m (loop_helper (denot__S p) b p) (Singleton _ (fun V => V, Complement _ (denot__B b))))) (F, B)
+      /\ F V = V'
+      /\ In _ B V
 .
 Proof.
     induction i; intros.
-    - simpl in H. destruct (Beval V b) eqn:Hbeval; destruct (denot_fun p V); inversion H.
-      + simpl. exists (fun V => V). eexists. repeat split.
-      + simpl. exists (fun V => V). eexists. repeat split.
-    - simpl in H. destruct (Beval V b) eqn:Hbeval, (denot_fun p V); cbn in *.
-      + destruct (IHi _ _ _ _ _ _ _ H H0) as [F [B Hin]].
+    - simpl in H. destruct (Beval V b) eqn:Hbeval, (denot_fun p V); cbn in H;
+        inversion H.
+      + exists (fun V => V). exists (Complement _ (denot__B b)). repeat split.
+        * apply Fam_intro with (i := 0). simpl.
+          constructor.
+        * rewrite denotB_false. rewrite <- H2. apply Hbeval.
+      + exists (fun V => V). exists (Complement _ (denot__B b)). repeat split.
+        * apply Fam_intro with (i := 0). simpl.
+          constructor.
+        * rewrite denotB_false. rewrite <- H2. apply Hbeval.
+    - simpl in H. destruct (Beval V b) eqn:Hbeval; destruct (denot_fun p V) eqn:Hbody; cbn in *.
+      + destruct (IHi _ _ _ _ H H0) as [F [B [Hin [HF HB]]]].
+        inversion Hin as [i' [? ?]]; subst.
+        destruct (H0 V v Hbody) as [F' [B' [Hin' [HF' HB']]]].
         exists (fun V => F (F' V)). eexists.
-        exists F. exists B. exists F'. exists B'.
         repeat split.
-        -- apply Hin.
-        -- apply H0.
+        * apply Fam_intro with (i := S i').
+          exists F. exists B. exists F'. exists B'.
+          repeat split.
+          -- apply H1.
+          -- apply Hin'.
+        * rewrite HF'. reflexivity.
+        * repeat split.
+          -- rewrite denotB_true. apply Hbeval.
+          -- apply HB'.
+          -- unfold inverse_image, In.
+             rewrite HF'.
+             apply HB.
       + inversion H.
-      + specialize (IHi p b V V' body F' B').
+      + inversion H; subst.
+        specialize (IHi p b V' V').
         rewrite Hbeval in IHi.
-        destruct (IHi H H0) as [F [B Hin]].
-        exists (fun V => F (F' V)). eexists.
-        exists F. exists B. exists F'. exists B'.
-        repeat split.
-        -- apply Hin.
-        -- apply H0.
-      + specialize (IHi p b V V' body F' B').
+        destruct (IHi H H0) as [F [B [Hin [HF HB]]]].
+        inversion Hin as [i' [? ?]]; subst.
+        exists F. exists B. repeat split.
+        * apply Hin.
+        * apply HF.
+        * apply HB.
+      + inversion H; subst.
+        specialize (IHi p b V' V').
         rewrite Hbeval in IHi.
-        destruct (IHi H H0) as [F [B Hin]].
-        exists (fun V => F (F' V)). eexists.
-        exists F. exists B. exists F'. exists B'.
-        repeat split.
-        -- apply Hin.
-        -- apply H0.
+        destruct (IHi H H0) as [F [B [Hin [HF HB]]]].
+        inversion Hin as [i' [? ?]]; subst.
+        exists F. exists B. repeat split.
+        * apply Hin.
+        * apply HF.
+        * apply HB.
 Qed.
-
 
 Lemma complete: forall p V V',
     denot_fun p V = Some V' ->
@@ -505,24 +630,24 @@ Proof.
         destruct (IHp _ _ H0) as [F [B [Hbody [HF HB]]]].
         destruct (loop_charact__C (denot_fun p) b x) as [i LIM].
         rewrite <- LIM with (j := S i) in H2; [|lia].
-        destruct (loop_complete _ _ _ _ _ _ _ _ H2 Hbody) as [F' [B' Hhelp]].
+        destruct (loop_complete _ _ _ _ _ H2 IHp) as [F' [B' [Hhelp [HF' HB']]]].
         exists (fun V => F' (F V)). exists (Intersection _ (denot__B b) (Intersection _ B (inverse_image F B'))).
         split; try split.
         * apply denot_while__S.
           -- apply Hbody.
-          -- simpl. eexists. exists i. reflexivity. apply Hhelp.
-        * rewrite HF. admit. (* need more info from loop_complete *)
+          -- simpl. apply Hhelp.
+        * rewrite HF. apply HF'.
         * split.
           -- rewrite denotB_true. apply Hbeval.
           -- split.
              ++ apply HB.
-             ++ admit. (* need info from loop_complete *)
+             ++ unfold inverse_image, In. rewrite HF. apply HB'.
       (* end of loop *)
       + rewrite denot_loop in H1.
         rewrite Hbeval in H1.
         exists (fun V => V). exists (Complement _ (denot__B b)). repeat split.
-        * eapply Big_U_intro;
-            [exists 0|]; constructor.
+        * apply Fam_intro with (i := 0).
+          simpl. constructor.
         * inversion H1. reflexivity.
         * rewrite denotB_false. apply Hbeval.
 Qed.
