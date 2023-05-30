@@ -17,6 +17,13 @@ From SymEx Require Import While.
 Open Scope com_scope.
 
 (* concrete *)
+
+Definition option_apply {A B: Type}: option (A -> B) -> A -> option B :=
+  fun f a => match f with
+          | None => None
+          | Some f => Some (f a)
+          end.
+
 Compute option_apply (denot_fun
                       <{if X <= 10 {X := X + 1;
                                        if X <= 5 {Y := X + X}

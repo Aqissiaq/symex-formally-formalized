@@ -17,10 +17,13 @@ Import BasicMaps.
 From SymEx Require Import While.
 Open Scope com_scope.
 
-(* We need Constructive Definite Description – a relatively week principle *)
+(* We need Constructive Definite Description – a relatively weak omniscience principle *)
+(*https://coq.inria.fr/stdlib/Coq.Logic.Description.html*)
+(*https://www.cs.princeton.edu/courses/archive/fall07/cos595/stdlib/html/Coq.Logic.ChoiceFacts.html*)
 From Coq Require Import Classical Description.
 
 (* Trick from Leroy *)
+(*https://xavierleroy.org/cdf-mech-sem/CDF.Divergence.html*)
 Inductive lessdef {A: Type}: option A -> option A -> Prop :=
   | lessdef_none: forall oa, lessdef None oa
   | lessdef_some: forall a, lessdef (Some a) (Some a).
@@ -88,30 +91,8 @@ Fixpoint loop_fuel__C (fuel: nat) (f: Valuation -> option Valuation) (b: Bexpr) 
                 else Some V
         end.
 
-Fixpoint loop_count_fuel (fuel count: nat) (f: Valuation -> option Valuation) (b: Bexpr) (V: Valuation): option (Valuation * nat) :=
-         match fuel with
-        | 0 => None
-        | S n => if Beval V b
-                then option_bind (f V) (loop_count_fuel n (S count) f b)
-                else Some (V, count)
-        end.
-
 Lemma loop_mono: forall i j f b V,
     i <= j -> loop_fuel__C i f b V <<= loop_fuel__C j f b V.
-Proof.
-    induction i; intros; simpl.
-    - constructor.
-    - destruct j.
-      + inversion H.
-      + simpl; destruct (Beval V b).
-        * apply option_bind_mono.
-          -- apply lessdef_refl.
-          -- intro. apply IHi. lia.
-        * constructor.
-Qed.
-
-Lemma loop_count_mono: forall i j n f b V,
-    i <= j -> loop_count_fuel i n f b V <<= loop_count_fuel j n f b V.
 Proof.
     induction i; intros; simpl.
     - constructor.
@@ -128,27 +109,6 @@ Qed.
 Definition loop__C (f: Valuation -> option Valuation) (b: Bexpr) (V: Valuation) : option Valuation :=
          limit (fun n => loop_fuel__C n f b V) (fun i j => loop_mono i j f b V).
 
-Definition loop_count (f: Valuation -> option Valuation) (b: Bexpr) (V: Valuation) : option (Valuation * nat) :=
-         limit (fun n => loop_count_fuel n 0 f b V) (fun i j => loop_count_mono i j 0 f b V).
-
-(*not actually used atm*)
-Inductive denot__C: Stmt -> (Valuation -> option Valuation) -> Prop :=
-  | denot_skip__C: denot__C <{skip}> (fun V => Some V)
-  | denot_asgn__C: forall x e,
-      denot__C <{x := e}> (fun V => Some (x !-> Aeval V e; V))
-  | denot_seq__C: forall p1 p2 f1 f2,
-      denot__C p1 f1 ->
-      denot__C p2 f2 ->
-      denot__C <{p1 ; p2}> (fun V => option_bind (f1 V) f2)
-  | denot_if__C: forall b p1 p2 f1 f2,
-      denot__C p1 f1 ->
-      denot__C p2 f2 ->
-      denot__C <{if b {p1} {p2}}> (fun V => if Beval V b then f1 V else f2 V)
-  | denot_loop__C: forall b p f,
-      denot__C p f ->
-      denot__C <{while b {p}}> (loop__C f b)
-.
-
 Fixpoint denot_fun (p: Stmt) (V: Valuation): option Valuation :=
          match p with
         | <{skip}> => Some V
@@ -162,64 +122,11 @@ Fixpoint denot_fun (p: Stmt) (V: Valuation): option Valuation :=
 Lemma loop_charact__C: forall f b V, exists i, forall j, i <= j -> loop_fuel__C j f b V = loop__C f b V.
 Proof. intros. apply limit_charact. Qed.
 
-Lemma loop_count_charact: forall f b V, exists i, forall j, i <= j -> loop_count_fuel j 0 f b V = loop_count f b V.
-Proof. intros. apply limit_charact. Qed.
-
-Lemma loop_count_none: forall i n f b V,
-    loop_fuel__C i f b V = None -> loop_count_fuel i n f b V = None.
-Proof.
-    induction i; intros; simpl in *.
-    - reflexivity.
-    - destruct (Beval V b), (f V).
-      + simpl in *. apply IHi. apply H.
-      + simpl. reflexivity.
-      + inversion H.
-      + inversion H.
-Qed.
-
-Lemma loop_count_increment: forall i n m f b V V',
-    loop_count_fuel i n f b V = Some (V', m) <-> loop_count_fuel i (S n) f b V = Some (V', S m).
-Proof.
-    induction i; split; intros;
-      try (simpl in H; inversion H).
-    - simpl in *. destruct (Beval V b).
-      + destruct (option_inversion H) as [? [? ?]].
-        rewrite H0. simpl. rewrite <- IHi. apply H2.
-      + inversion H. reflexivity.
-    - simpl in *. destruct (Beval V b).
-      + destruct (option_inversion H) as [? [? ?]].
-        rewrite H0. simpl. rewrite IHi. apply H2.
-      + inversion H. reflexivity.
-Qed.
-
-Lemma loop_count_correct: forall i f b V V',
-    loop_fuel__C i f b V = Some V' -> exists n, loop_count_fuel i 0 f b V = Some (V', n).
-Proof.
-    induction i; intros.
-    - simpl in H. inversion H.
-    - simpl in *. destruct (Beval V b), (f V); cbn in *.
-      + destruct (IHi _ _ _ _ H) as [n ?].
-        exists (S n). rewrite <- loop_count_increment. apply H0.
-      + inversion H.
-      + inversion H. exists 0. reflexivity.
-      + inversion H. exists 0. reflexivity.
-Qed.
-
 Lemma loop_unique__C: forall f b V i lim,
     (forall j, i <= j -> loop_fuel__C j f b V = lim) ->
     loop__C f b V = lim.
 Proof.
     intros. destruct (loop_charact__C f b V) as [i' LIM].
-    set (j := Nat.max i i').
-    rewrite <- (H j). rewrite (LIM j). reflexivity.
-    all: lia.
-Qed.
-
-Lemma loop_count_unique: forall f b V i lim,
-    (forall j, i <= j -> loop_count_fuel j 0 f b V = lim) ->
-    loop_count f b V = lim.
-Proof.
-    intros. destruct (loop_count_charact f b V) as [i' LIM].
     set (j := Nat.max i i').
     rewrite <- (H j). rewrite (LIM j). reflexivity.
     all: lia.
@@ -256,12 +163,6 @@ Qed.
 
 Lemma loop_false: forall f b V, Beval V b = false -> loop__C f b V = Some V.
 Proof. intros. rewrite denot_loop. rewrite H. reflexivity. Qed.
-
-Definition option_apply {A B: Type}: option (A -> B) -> A -> option B :=
-  fun f a => match f with
-          | None => None
-          | Some f => Some (f a)
-          end.
 
 (** Symbolic Semantics *)
 
@@ -330,9 +231,6 @@ Proof.
     - exists F'. exists B'. exists Fp. exists Bp.
       repeat split. apply Hloop.
 Qed.
-
-Inductive Big_Union {X} (Xs: Ensemble (Ensemble X)) : Ensemble X :=
-  | Big_U_intro: forall X x, In _ Xs X -> In _ X x -> In _ (Big_Union Xs) x.
 
 Inductive Union_Fam {X I} (Fs: I -> Ensemble X): Ensemble X :=
   | Fam_intro: forall {i x}, In _ (Fs i) x -> In _ (Union_Fam Fs) x.
@@ -411,40 +309,6 @@ Proof.
       try assumption.
 Qed.
 
-Lemma loop_correct (p: Stmt)
-  (IHp : forall (F : Valuation -> Valuation) (B : Ensemble Valuation) (V : Valuation),
-      In Branch (denot__S p) (F, B) -> In Valuation B V -> exists V' : Valuation, F V = V' /\ denot_fun p V = Some V'):
-  forall n F B b,
-    In _ (n_fold n (loop_helper (denot__S p) b p)
-         (Singleton _ (fun V => V, Complement _ (denot__B b))))
-   (F, B) ->
-    forall V,
-      In _ B V ->
-      loop_fuel__C (S n) (denot_fun p) b V = option_lift F V.
-Proof.
-    induction n; intros.
-    - simpl in *. inversion H; subst.
-      rewrite denotB_false in H0. rewrite H0.
-      reflexivity.
-    - destruct (loop_helper_step _ _ _ _ _ _ _ H) as [? [? [Hsofar Hstep]]].
-      destruct Hstep as [F' [B' [Fbody [Bbody [? [? [? ?]]]]]]].
-      simpl in H3, H4; subst.
-      inversion H1; subst.
-      inversion H0; subst.
-      rewrite denotB_true in H3.
-      specialize (IHn _ _ _ Hsofar (Fbody V)).
-      replace (loop_fuel__C (S (S n)) (denot_fun p) b V) with
-        (option_bind (denot_fun p V) (loop_fuel__C (S n) (denot_fun p) b)).
-      unfold option_lift in *. rewrite <- IHn. cbn.
-      replace (denot_fun p V) with (Some (Fbody V)).
-      reflexivity.
-      + destruct (IHp _ _ V H2) as [V' [? ?]];
-          [inversion H4; subst; assumption |].
-        rewrite H5, H6. reflexivity.
-      + destruct H4. apply H5.
-      + simpl. rewrite H3. reflexivity.
-Qed.
-
 Lemma intersect_subset {X: Type}: forall (A B: Ensemble X),
     Included _ A B -> A = Intersection _ A B.
 Proof.
@@ -455,32 +319,6 @@ Proof.
     - intros x inIntersection.
       destruct inIntersection.
       apply H0.
-Qed.
-
-Lemma loop_count_monotone: forall i f b V V' n m,
-    loop_count_fuel i n f b V = Some (V', m) ->
-    n <= m.
-Proof.
-    induction i; intros.
-    - simpl in H. inversion H.
-    - simpl in H. destruct (Beval V b).
-      + destruct (option_inversion H) as [? [? ?]].
-        specialize (IHi _ _ _ _ _ _ H1). lia.
-      + inversion H. auto.
-Qed.
-
-Lemma loop_count_zero: forall f b V V',
-    loop_count f b V = Some (V', 0) ->
-    Beval V b = false /\ V = V'.
-Proof.
-    intros. destruct (loop_count_charact f b V) as [i LIM].
-    rewrite <- LIM with (j := S i) in H; [|lia].
-    simpl in H. destruct (Beval V b) eqn:Hb, (f V).
-    + simpl in H.
-      apply loop_count_monotone in H. lia.
-    + inversion H.
-    + inversion H. split; reflexivity.
-    + inversion H. split; reflexivity.
 Qed.
 
 Lemma loop_complete: forall i p b V V',
@@ -630,7 +468,7 @@ Proof.
         * rewrite denotB_false. apply Hbeval.
 Qed.
 
-Lemma loop_correct': forall i p b F B V0,
+Lemma loop_correct: forall i p b F B V0,
     In _ (n_fold i (loop_helper (denot__S p) b p)
          (Singleton _ (fun V => V, Complement Valuation (denot__B b))))
    (F, B) ->
@@ -703,5 +541,5 @@ Proof.
         destruct (IHp2 F B2 V H2 H) as [V2 [HF2 HV2]].
         exists V2. split; assumption.
     - inversion H; subst; cbn.
-      apply (loop_correct' _ _ _ _ _ V H1 IHp H0).
+      apply (loop_correct _ _ _ _ _ V H1 IHp H0).
 Qed.
