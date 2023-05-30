@@ -17,7 +17,7 @@ Import BasicMaps.
 From SymEx Require Import While.
 Open Scope com_scope.
 
-(* blæh *)
+(* We need Constructive Definite Description – a relatively week principle *)
 From Coq Require Import Classical Description.
 
 (* Trick from Leroy *)
@@ -263,26 +263,6 @@ Definition option_apply {A B: Type}: option (A -> B) -> A -> option B :=
           | Some f => Some (f a)
           end.
 
-Compute option_apply (denot_fun
-                      <{if X <= 10 {X := X + 1;
-                                       if X <= 5 {Y := X + X}
-                                              { skip }}
-                               { Y := 42 }}>
-                        (_ !-> 11)) Y.
-
-Compute option_apply (denot_fun
-                      <{while X <= 10 {X := X + 1;
-                                       if X <= 5 {Y := X + X}
-                                                { skip }} }>
-                        (_ !-> 0)) X.
-(* this result is annoying, but meh *)
-
-Example branch_example: Stmt := <{
-    if X <= 0
-           {if 1 <= 0 {X := 42} {X := 0}}
-           {if 1 <= 0 {X := 42} {X := 1}}
-    }>.
-
 (** Symbolic Semantics *)
 
 Definition Branch: Type := (Valuation -> Valuation) * (Ensemble Valuation).
@@ -292,8 +272,6 @@ Definition denot__B (b: Bexpr): Ensemble Valuation := fun V => Beval V b = true.
 
 Lemma denotB_true: forall V b, In _ (denot__B b) V <-> Beval V b = true.
 Proof. split; intros; apply H. Qed.
-
-Search (forall b, b <> true -> b = false).
 
 Lemma denotB_false: forall V b, In _ (Complement _ (denot__B b)) V <-> Beval V b = false.
 Proof.
@@ -652,6 +630,36 @@ Proof.
         * rewrite denotB_false. apply Hbeval.
 Qed.
 
+Lemma loop_correct': forall i p b F B V0,
+    In _ (n_fold i (loop_helper (denot__S p) b p)
+         (Singleton _ (fun V => V, Complement Valuation (denot__B b))))
+   (F, B) ->
+    (forall F' B' V,
+        In _ (denot__S p) (F', B') ->
+        In _ B' V ->
+        exists V', F' V = V'
+              /\ denot_fun p V = Some V') ->
+    In _ B V0 ->
+    exists V,
+      F V0 = V
+      /\ loop__C (denot_fun p) b V0 = Some V.
+Proof.
+    induction i; intros.
+    - simpl in H. inversion H; subst.
+      exists V0. split.
+      + reflexivity.
+      + apply loop_false. rewrite <- denotB_false. apply H1.
+    - destruct (loop_helper_step _ _ _ _ _ _ _ H) as [F' [B' [Hsofar H2]]].
+      inversion H2 as [F0 [B0 [Fp [Bp [? [? [? ?]]]]]]].
+      simpl in H5, H6. inversion H3. subst.
+      inversion H1; inversion H6; subst.
+      destruct (H0 Fp Bp V0 H4 H8) as [V' [? ?]].
+      destruct (IHi _ _ _ _  (Fp V0) Hsofar H0 H9) as [V'' [? ?]].
+      exists V''. split.
+      + apply H11.
+      + rewrite denot_loop. rewrite H5. rewrite H10; cbn.
+        rewrite <- H7. apply H12.
+Qed.
 
 Lemma correct: forall p F B V,
     In _ (denot__S p) (F, B) ->
@@ -695,93 +703,5 @@ Proof.
         destruct (IHp2 F B2 V H2 H) as [V2 [HF2 HV2]].
         exists V2. split; assumption.
     - inversion H; subst; cbn.
-      destruct (loop_charact__C (denot_fun p) b V) as [i' LIM].
-      rewrite <- LIM with (j := S i'); [| lia].
-      destruct H1. destruct x; cbn in *.
-      + rewrite <- H1 in H2. inversion H2; subst.
-        exists V. split.
-        * reflexivity.
-        * rewrite denotB_false in H0. rewrite H0. reflexivity.
-      + exists (F V). split.
-        * reflexivity.
-        * rewrite n_fold_inversion in H1.
-          rewrite <- H1 in H2.
-          destruct (loop_helper_step _ _ _ _ _ _ _ H2) as [? [? [Hsofar Hstep]]].
-          destruct Hstep as [F' [B' [Fbody [Bbody [? [? [? ?]]]]]]].
-          simpl in H5, H6; subst.
-          inversion H3; subst.
-          inversion H0; subst. inversion H5; subst.
-          specialize (loop_correct p IHp _ _ _ _ Hsofar (Fbody V) H7). intro.
-          rewrite denotB_true in H1. rewrite H1.
-          destruct (IHp _ _ _ H4 H6) as [V' [? ?]].
-          rewrite H10; simpl. rewrite <- H9.
-          replace i' with (S x).
-          (* the symbolic and concrete execution take same number of steps *)
-          (* which is not strictly true, but should be admissible? *)
-          unfold option_lift in H8. apply H8.
-Admitted.
-
-Example branch_1: denot__S branch_example (fun V => (X !-> 42 ; V), Empty_set _).
-Proof.
-    left. exists (fun V => (X !-> 42 ; V)). eexists. repeat split.
-    - left. exists (fun V => (X !-> 42 ; V)). eexists. repeat split.
-    - simpl. apply Extensionality_Ensembles. split.
-      + intros V H. inversion H.
-      + intros V H. inversion H; subst; inversion H0; inversion H3.
-Qed.
-
-Example branch_2: denot__S branch_example (fun V => (X !-> 42 ; V), Empty_set _).
-Proof.
-    right. eexists. eexists. repeat split.
-    - left. eexists. eexists. repeat split.
-    - simpl. apply Extensionality_Ensembles. split.
-      + intros V H. inversion H.
-      + intros V H. inversion H; subst; inversion H0; inversion H3.
-Qed.
-
-Example branch_3: denot__S branch_example (fun V => (X !-> 0 ; V), fun V => V X = 0).
-Proof.
-    left. eexists. eexists. repeat split.
-    - right. eexists. eexists. repeat split.
-    - apply Extensionality_Ensembles. split; intros V H.
-      + inversion H. split.
-        * split.
-          -- apply Full_intro.
-          -- intro. rewrite H1 in H0. inversion H0.
-        * rewrite H1. unfold denot__B, In. simpl. rewrite H1. reflexivity.
-      + inversion H. inversion H1. apply leb_complete in H4. inversion H4. reflexivity.
-Qed.
-
-Lemma leb_correct_neg: forall n m, n <=? m <> true -> ~ (n <= m).
-Proof. intros n m H contra. apply H. apply leb_correct. apply contra. Qed.
-
-Example branch_4: denot__S branch_example (fun V => (X !-> 1 ; V), fun V => V X > 0).
-Proof.
-    right. eexists. eexists. repeat split.
-    - right. eexists. eexists. repeat split.
-    - apply Extensionality_Ensembles. split; intros V H.
-      + inversion H; repeat split; intro; inversion H0.
-        * rewrite <- H1 in H3. discriminate.
-        * inversion H2.
-        * inversion H2. rewrite <- H0 in H5. discriminate.
-      + inversion H. unfold In. simpl.
-        unfold Complement, In, denot__B in H1. simpl in H1.
-        apply leb_correct_neg in H1. apply not_le in H1.
-        assumption.
-Qed.
-
-Example loop_example: Stmt :=
-         <{ while X <= 10 {X := X + 1} }>.
-
-Example loop_0: denot__S loop_example (fun V => V, fun V => V X > 10).
-Proof. cbn. unfold Union_Fam. eapply Big_U_intro with (X := Singleton _ (fun V => V, fun V => V X > 10)).
-       - exists 0.
-       assert (Complement _ (denot__B <{ X <= 10 }>) = fun V => V X > 10).
-         { apply Extensionality_Ensembles. repeat split; intros V H.
-           - unfold Complement, In, denot__B in H. simpl in H. apply leb_correct_neg in H.
-             apply not_le in H. apply H.
-           - intro H'. unfold In, denot__B in *. simpl in *. apply leb_complete in H'. lia.
-         }
-         cbn. rewrite H. reflexivity.
-       - reflexivity.
+      apply (loop_correct' _ _ _ _ _ V H1 IHp H0).
 Qed.

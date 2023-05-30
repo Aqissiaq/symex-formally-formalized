@@ -18,5 +18,4 @@ Trace_examples.v
 POR_examples.v
 #Oop.v
 
-BigStep.v
-BigStepTraces.v
+BigStepClassical.v
