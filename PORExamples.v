@@ -10,10 +10,108 @@ Import TraceSemantics.
 From SymEx Require Import Maps.
 Import BasicMaps.
 
-From SymEx Require Import TraceSemantics PartialOrderReduction InterferenceFreedom.
+From SymEx Require Import TraceSemantics PartialOrderReduction.
 
 Open Scope com_scope.
 Open Scope trace_scope.
+
+Example branch_ex := <{Y := 1 || X := 3 || if X <= 1 {Y := 2} {Y := 3}}>.
+
+Example branc_ex_1: red_star__S ([], branch_ex) ([Asgn__S Y 1 ; Asgn__S X 3 ; Cond <{ ~ X <= 1}> ; Asgn__S Y 3], SSkip).
+Proof.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y 1 ; Asgn__S X 3 ; Cond <{~ X <= 1}> ; Asgn__S Y 3], <{ skip || skip }>)).
+  apply ctx_red_intro with (C := fun s => s); constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y 1 ; Asgn__S X 3 ; Cond <{~ X <= 1}> ; Asgn__S Y 3], <{ skip || skip || skip }>)).
+  apply ctx_red_intro with (C := fun s => <{skip || s}>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y 1 ; Asgn__S X 3 ; Cond <{~ X <= 1}>], <{ skip || skip || Y := 3 }>)).
+  apply ctx_red_intro with (C := fun s => <{skip || skip || s}>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y 1 ; Asgn__S X 3], <{ skip || skip || if X <= 1 {Y := 2} {Y := 3}}>)).
+  apply ctx_red_intro with (C := fun s => <{skip || skip || s}>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y 1], <{ skip || X := 3 || if X <= 1 {Y := 2} {Y := 3}}>)).
+  apply ctx_red_intro with (C := fun s => <{skip || s || if X <= 1 {Y := 2} {Y := 3}}>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with (y := ([], branch_ex)).
+  apply ctx_red_intro with (C := fun s => <{s || X := 3 || if X <= 1 {Y := 2} {Y := 3}}>); repeat constructor.
+  constructor.
+Qed.
+
+Example branc_ex_2: red_star__S ([], branch_ex) ([Asgn__S X 3 ; Asgn__S Y 1 ; Cond <{ ~ X <= 1}> ; Asgn__S Y 3], SSkip).
+Proof.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S X 3 ; Asgn__S Y 1 ; Cond <{~ X <= 1}> ; Asgn__S Y 3], <{ skip || skip }>)).
+  apply ctx_red_intro with (C := fun s => s); constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S X 3 ; Asgn__S Y 1 ; Cond <{~ X <= 1}> ; Asgn__S Y 3], <{ skip || skip || skip }>)).
+  apply ctx_red_intro with (C := fun s => <{skip || s}>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S X 3 ; Asgn__S Y 1 ; Cond <{~ X <= 1}>], <{ skip || skip || Y := 3 }>)).
+  apply ctx_red_intro with (C := fun s => <{skip || skip || s}>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S X 3 ; Asgn__S Y 1 ], <{ skip || skip || if X <= 1 {Y := 2} {Y := 3}}>)).
+  apply ctx_red_intro with (C := fun s => <{skip || skip || s}>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S X 3], <{ Y := 1 || skip || if X <= 1 {Y := 2} {Y := 3}}>)).
+  apply ctx_red_intro with (C := fun s => <{s || skip || if X <= 1 {Y := 2} {Y := 3}}>); repeat constructor.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([], <{ Y := 1 || X := 3 || if X <= 1 {Y := 2} {Y := 3}}>)).
+  apply ctx_red_intro with (C := fun s => <{Y := 1 || s || if X <= 1 {Y := 2} {Y := 3}}>); repeat constructor.
+  constructor.
+Qed.
+
+Fact x_neq_y: X <> Y.
+Proof. destruct (String.eqb_spec X Y); [discriminate | assumption]. Qed.
+
+Example initial_paths_equiv: [Asgn__S X 3 ; Asgn__S Y 1] ~ [Asgn__S Y 1 ; Asgn__S X 3].
+Proof.
+  split; intros; simpl; try reflexivity.
+  apply update_comm. apply not_eq_sym. apply x_neq_y.
+Qed.
+
+Example final_paths_equiv:
+  [Asgn__S X 3 ; Asgn__S Y 1 ; Cond <{ ~ X <= 1}> ; Asgn__S Y 3] ~ [Asgn__S Y 1 ; Asgn__S X 3 ; Cond <{ ~ X <= 1}> ; Asgn__S Y 3].
+Proof.
+  split; intros; simpl; try reflexivity.
+  rewrite (update_comm _ X Y); [reflexivity | apply x_neq_y].
+Qed.
+
+Ltac construct_step :=
+  repeat (match goal with
+          | |- ?t ~ ?t => reflexivity
+          | |- ?t ~ ?t' => apply initial_paths_equiv
+          | _ => econstructor
+
+          end).
+
+Example branc_ex_POR: red_star__POR ([], branch_ex) ([Asgn__S X 3 ; Asgn__S Y 1 ; Cond <{ ~ X <= 1}> ; Asgn__S Y 3], SSkip).
+Proof.
+  (* the last steps are identical to above branch_ex_2 *)
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S X 3 ; Asgn__S Y 1 ; Cond <{~ X <= 1}> ; Asgn__S Y 3], <{ skip || skip }>)).
+  apply ctx_red_intro with (C := fun s => s); construct_step.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S X 3 ; Asgn__S Y 1 ; Cond <{~ X <= 1}> ; Asgn__S Y 3], <{ skip || skip || skip }>)).
+  apply ctx_red_intro with (C := fun s => <{skip || s}>); construct_step.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S X 3 ; Asgn__S Y 1 ; Cond <{~ X <= 1}>], <{ skip || skip || Y := 3 }>)).
+  apply ctx_red_intro with (C := fun s => <{skip || skip || s}>); construct_step.
+
+  (* but then we switch to branch_ex_1 *)
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y 1 ; Asgn__S X 3 ], <{ skip || skip || if X <= 1 {Y := 2} {Y := 3}}>)).
+  apply ctx_red_intro with (C := fun s => <{skip || skip || s}>); construct_step.
+  apply Relation_Operators.rtn1_trans with
+    (y := ([Asgn__S Y 1], <{ skip || X := 3 || if X <= 1 {Y := 2} {Y := 3}}>)).
+  apply ctx_red_intro with (C := fun s => <{skip || s || if X <= 1 {Y := 2} {Y := 3}}>); construct_step.
+  apply Relation_Operators.rtn1_trans with (y := ([], branch_ex)).
+  apply ctx_red_intro with (C := fun s => <{s || X := 3 || if X <= 1 {Y := 2} {Y := 3}}>); construct_step.
+  constructor.
+Qed.
+
+(* non-equivalent example? *)
 
 Example par_simple_0: red__S ([], <{ (X := 1 ; Y := 1) || Y := 2 || X := 2}>)
                         ([Asgn__S X 1], <{ (skip ; Y := 1) || Y := 2 || X := 2 }>).
@@ -174,6 +272,8 @@ Proof.
   apply ctx_red_intro with (C := fun s => <{ Y := X || Z := X || s}>); repeat constructor.
   constructor.
 Qed.
+
+From SymEx Require Import InterferenceFreedom.
 
 Example example_IF: interference_free__S (Asgn__S Z X) (Asgn__S Y X).
 Proof. splits; unfold reads_var, writes_var, contains__A; intro contra;
