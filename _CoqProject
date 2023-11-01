@@ -5,14 +5,10 @@ Maps.v
 Traces.v
 
 BasicConcrete.v
-Recursion.v
-TraceSemantics.v
 Parallel.v
 ParallelTraces.v
 ContextReduction.v
 BasicContextReduction.v
 PartialOrderReduction.v
 
-Trace_examples.v
 POR_examples.v
-#Oop.v

@@ -25,51 +25,16 @@ Fixpoint contains__A (e:Aexpr) (x:Var) : Prop :=
   | AConst _ => False
   | AVar y => x = y
   | <{e1 + e2}> => contains__A e1 x \/ contains__A e2 x
-  end.
-
-(* idk, but this seems like it might be useful *)
-Lemma contains_dec__A: forall x e, contains__A e x \/ ~ (contains__A e x).
-Proof.
-  induction e.
-  - right. auto.
-  - destruct (String.eqb_spec x x0); subst.
-    + left. reflexivity.
-    + right. unfold contains__A. assumption.
-  - destruct IHe1.
-    + left. left. assumption.
-    + destruct IHe2.
-      * left. right. assumption.
-      * right. intro. destruct H1; auto.
-Qed.
-
-Fixpoint contains__B (e:Bexpr) (x:Var) : Prop :=
+  | AIte b e1 e2 => contains__B b x \/ contains__A e1 x \/ contains__A e2 x
+  end with contains__B (e:Bexpr) (x:Var) : Prop :=
   match e with
   | BTrue => False
   | BFalse => False
   | <{ ~ b }> => contains__B b x
   | <{ b1 && b2 }> => contains__B b1 x \/ contains__B b2 x
+  | BOr b1 b2 => contains__B b1 x \/ contains__B b2 x
   | <{ a1 <= a2 }> => contains__A a1 x \/ contains__A a2 x
   end.
-
-Lemma contains_dec__B: forall x e, contains__B e x \/ ~ (contains__B e x).
-Proof.
-  induction e.
-  - right; auto.
-  - right; auto.
-  - destruct IHe.
-    + left; auto.
-    + right; auto.
-  - destruct IHe1.
-    + left. left. apply H.
-    + destruct IHe2.
-      * left. right. apply H0.
-      * right. intro. destruct H1; auto.
-  - destruct (contains_dec__A x a1).
-    + left. left. apply H.
-    + destruct (contains_dec__A x a2).
-      * left. right. apply H0.
-      * right. intro. destruct H1; auto.
-Qed.
 
 Definition reads_var (s:trace_step__S) (x:Var) : Prop :=
   match s with
@@ -98,31 +63,42 @@ Proof.
   - destruct H as [_ [_ contra]]. intro. destruct H. apply contra. splits; assumption.
 Qed.
 
-Lemma no_touch__A: forall s e x a, ~ (contains__A a x) -> Aapply (x !-> e ; s) a = Aapply s a.
+
+Lemma no_touch: forall s e x,
+    (forall a, ~ contains__A a x -> Aapply (x !-> e ; s) a = Aapply s a)
+    /\ forall b, ~ (contains__B b x) -> Bapply (x !-> e ; s) b = Bapply s b.
 Proof.
-  induction a; intro.
-  - reflexivity.
-  - unfold contains__A in H. apply update_neq. assumption.
-  - simpl. rewrite IHa1, IHa2.
-    + reflexivity.
-    + intro. apply H. right. assumption.
-    + intro. apply H. left. assumption.
+    intros. apply aexpr_bexpr_mutind with
+      (P := fun a => ~ contains__A a x -> Aapply (x !-> e ; s) a = Aapply s a)
+      (P0 := fun b => ~ (contains__B b x) -> Bapply (x !-> e ; s) b = Bapply s b);
+      intros; simpl; try easy.
+    - apply update_neq. apply H.
+    - rewrite H, H0. reflexivity.
+      + intro. apply H1. right. apply H2.
+      + intro. apply H1. left. apply H2.
+    - rewrite H, H0, H1. reflexivity.
+      + intro. apply H2. right. right. apply H3.
+      + intro. apply H2. right. left. apply H3.
+      + intro. apply H2. left. apply H3.
+    - rewrite H. reflexivity.
+      + apply H0.
+    - rewrite H, H0. reflexivity.
+      + intro. apply H1. right. apply H2.
+      + intro. apply H1. left. apply H2.
+    - rewrite H, H0. reflexivity.
+      + intro. apply H1. right. apply H2.
+      + intro. apply H1. left. apply H2.
+    - rewrite H, H0. reflexivity.
+      + intro. apply H1. right. apply H2.
+      + intro. apply H1. left. apply H2.
 Qed.
 
-Lemma no_touch__B: forall s e x b, ~ (contains__B b x) -> Bapply (x !-> e ; s) b = Bapply s b.
-Proof.
-  induction b; intro;
-    try reflexivity.
-  - simpl in *. rewrite IHb; [reflexivity | assumption].
-  - simpl in *. rewrite IHb1, IHb2.
-    + reflexivity.
-    + intro. apply H. right. assumption.
-    + intro. apply H. left. assumption.
-  - simpl. rewrite (no_touch__A _ _ x a1), (no_touch__A _ _ x a2).
-    + reflexivity.
-    + intro. apply H. right. assumption.
-    + intro. apply H. left. assumption.
-Qed.
+
+Corollary no_touch__A: forall s e x a, ~ (contains__A a x) -> Aapply (x !-> e ; s) a = Aapply s a.
+Proof. apply no_touch. Qed.
+
+Corollary no_touch__B: forall s e x b, ~ (contains__B b x) -> Bapply (x !-> e ; s) b = Bapply s b.
+Proof. apply no_touch. Qed.
 
 Lemma IF_apply: forall s x x' e e',
     interference_free__S (Asgn__S x e) (Asgn__S x' e') ->
@@ -322,16 +298,42 @@ Definition interference_free__C: relation (Var * Aexpr) :=
 Definition path_equiv__C: relation trace__C := permute_events interference_free__C.
 Notation " t '≃' t' " := (path_equiv__C t t') (at level 40).
 
-Lemma no_touch_Aeval: forall V v x a, ~ (contains__A a x) -> Aeval (x !-> v ; V) a = Aeval V a.
+Lemma no_touch_eval: forall V v x,
+  (forall a, ~ (contains__A a x) -> Aeval (x !-> v ; V) a = Aeval V a)
+  /\ forall b, ~ (contains__B b x) -> Beval (x !-> v ; V) b = Beval V b.
 Proof.
-  induction a; intro.
-  - reflexivity.
-  - unfold contains__A in H. apply update_neq. assumption.
-  - simpl. rewrite IHa1, IHa2.
-    + reflexivity.
-    + intro. apply H. right. assumption.
-    + intro. apply H. left. assumption.
+    intros. apply aexpr_bexpr_mutind with
+      (P := fun a => ~ contains__A a x -> Aeval (x !-> v ; V) a = Aeval V a)
+      (P0 := fun b => ~ contains__B b x -> Beval (x !-> v ; V) b = Beval V b);
+      intros; simpl; try easy.
+    - apply update_neq. apply H.
+    - rewrite H, H0. reflexivity.
+      + intro. apply H1. right. apply H2.
+      + intro. apply H1. left. apply H2.
+    - rewrite H, H0, H1. reflexivity.
+      + intro. apply H2. right. right. apply H3.
+      + intro. apply H2. right. left. apply H3.
+      + intro. apply H2. left. apply H3.
+    - rewrite H. reflexivity.
+      + apply H0.
+    - rewrite H, H0. reflexivity.
+      + intro. apply H1. right. apply H2.
+      + intro. apply H1. left. apply H2.
+    - rewrite H, H0. reflexivity.
+      + intro. apply H1. right. apply H2.
+      + intro. apply H1. left. apply H2.
+    - rewrite H, H0. reflexivity.
+      + intro. apply H1. right. apply H2.
+      + intro. apply H1. left. apply H2.
 Qed.
+
+Corollary no_touch_Aeval: forall V v x a,
+    ~ (contains__A a x) -> Aeval (x !-> v ; V) a = Aeval V a.
+Proof. apply no_touch_eval. Qed.
+
+Corollary no_touch_Beval: forall V v x b,
+    ~ (contains__B b x) -> Beval (x !-> v ; V) b = Beval V b.
+Proof. apply no_touch_eval. Qed.
 
 Theorem equiv_acc_val: forall V0 t t', t ≃ t' -> acc_val V0 t = acc_val V0 t'.
 Proof. apply equiv_acc_val_generic. unfold sim_subst__C. intros.
