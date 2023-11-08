@@ -18,7 +18,7 @@ Open Scope com_scope.
 Open Scope string_scope.
 Open Scope trace_scope.
 
-Ltac splits := repeat (try split).
+Ltac splits := repeat (try split; try trivial).
 
 (** Generalized context unfolding *)
 (** idea from: https://xavierleroy.org/cdf-mech-sem/CDF.FUN.html *)
@@ -106,10 +106,9 @@ Proof.
   intros. destruct H1 as [_ H2]. symmetry in H2.
   dependent destruction H. dependent induction H;
     (* the skips*)
-    try (exists t0'; splits; [constructor | assumption | assumption]).
+    try (exists t0'; splits; constructor).
   - eexists. splits.
     + apply head_red_asgn__C.
-    + assumption.
     + unfold Aeval_t. simpl. rewrite asgn_sound. rewrite H2. reflexivity.
   - simpl in H1. apply andb_true_iff in H1. destruct H1.
     unfold Bapply_t in H. rewrite <- comp_subB in H. rewrite <- H2 in H.
@@ -117,8 +116,6 @@ Proof.
     (* there's got to be a better way to do this...*)
     + assert (head_red__C V0 (t0', <{ if b {s'0}{s2} }>) (t0', if Beval_t V0 t0' b then s'0 else s2)) by constructor.
       unfold Beval_t in H3. rewrite H in H3. apply H3.
-    + assumption.
-    + simpl. assumption.
   - simpl in H1. apply andb_true_iff in H1. destruct H1.
     apply negb_true_iff in H.
     unfold Bapply_t in H. rewrite <- comp_subB in H. rewrite <- H2 in H.
@@ -126,16 +123,12 @@ Proof.
     (* there's got to be a better way to do this...*)
     + assert (head_red__C V0 (t0', <{ if b {s1}{s'0} }>) (t0', if Beval_t V0 t0' b then s1 else s'0)) by constructor.
       unfold Beval_t in H3. rewrite H in H3. apply H3.
-    + assumption.
-    + simpl. assumption.
   - simpl in H1. apply andb_true_iff in H1. destruct H1.
     unfold Bapply_t in H. rewrite <- comp_subB in H. rewrite <- H2 in H.
     exists t0'. splits.
     (* there's got to be a better way to do this...*)
     + assert (head_red__C V0 (t0', <{ while b {s} }>) (t0', if Beval_t V0 t0' b then <{s ; while b {s}}> else SSkip)) by constructor.
       unfold Beval_t in H3. rewrite H in H3. apply H3.
-    + assumption.
-    + simpl. assumption.
   - simpl in H1. apply andb_true_iff in H1. destruct H1.
     apply negb_true_iff in H.
     unfold Bapply_t in H. rewrite <- comp_subB in H. rewrite <- H2 in H.
@@ -143,8 +136,6 @@ Proof.
     (* there's got to be a better way to do this...*)
     + assert (head_red__C V0 (t0', <{ while b {s} }>) (t0', if Beval_t V0 t0' b then <{s ; while b {s}}> else SSkip)) by constructor.
       unfold Beval_t in H3. rewrite H in H3. apply H3.
-    + assumption.
-    + simpl. assumption.
 Qed.
 
 Lemma completeness_step : forall s s' t0 t t0' V0,
@@ -156,23 +147,20 @@ Proof.
   intros. dependent destruction H. dependent induction H;
     destruct H1;
     (* the skips*)
-    try (exists t0'; splits; [constructor | assumption | assumption | assumption]).
+    try (exists t0'; splits; constructor).
   - eexists. splits.
     + constructor.
     + assumption.
-    + simpl. assumption.
     + unfold Aeval_t. simpl. rewrite asgn_sound. rewrite H1. reflexivity.
   - destruct (Beval_t V0 t b) eqn:Hbranch; unfold Beval_t in Hbranch.
     + eexists. splits.
       * apply head_red_cond_true__S.
-      * assumption.
       * simpl. apply andb_true_iff. split.
         ** unfold Bapply_t. rewrite <- comp_subB. rewrite H1. assumption.
         ** assumption.
       * simpl. assumption.
     + eexists. splits.
       * apply head_red_cond_false__S.
-      * assumption.
       * simpl. apply andb_true_iff. split.
         ** unfold Bapply_t. rewrite <- comp_subB. rewrite H1. apply negb_true_iff. assumption.
         ** assumption.
@@ -180,14 +168,12 @@ Proof.
   - destruct (Beval_t V0 t b) eqn:Hbranch; unfold Beval_t in Hbranch.
     + eexists. splits.
       * apply head_red_loop_true__S.
-      * assumption.
       * simpl. apply andb_true_iff. split.
         ** unfold Bapply_t. rewrite <- comp_subB. rewrite H1. assumption.
         ** assumption.
       * simpl. assumption.
     + eexists. splits.
       * apply head_red_loop_false__S.
-      * assumption.
       * simpl. apply andb_true_iff. split.
         ** unfold Bapply_t. rewrite <- comp_subB. rewrite H1. apply negb_true_iff. assumption.
         ** assumption.

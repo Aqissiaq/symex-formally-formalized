@@ -12,3 +12,5 @@ BasicContextReduction.v
 PartialOrderReduction.v
 
 POR_examples.v
+
+IfThenElseMerge.v

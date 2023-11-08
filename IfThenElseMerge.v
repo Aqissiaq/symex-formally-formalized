@@ -58,46 +58,24 @@ Inductive head_red__S: relation (sub * Bexpr * Stmt) :=
     head_red__S (sig, phi, <{skip || s}>) (sig, phi, s)
 | SPar_right_skip: forall s sig phi,
     head_red__S (sig, phi, <{s || skip}>) (sig, phi, s)
-(* we have to explicitly give b (which separates phi and phi'), the pcs and the states*)
-| SMerge_step: forall s sig sig' phi phi' b,
-    separates phi phi' b ->
-    head_red__S (sig, phi, s) (merge_sub b sig sig', <{phi | phi'}>, s).
+.
 
 Definition Sstep: relation (sub * Bexpr * Stmt) := context_red is_context head_red__S.
-Definition multi_Sstep := clos_refl_trans_n1 _ Sstep.
-
 Notation " c '->s' c'" := (Sstep c c') (at level 40).
+
+Inductive multi_Sstep: relation (sub * Bexpr * Stmt) :=
+| multi_refl: forall sig phi s, multi_Sstep (sig, phi, s) (sig, phi, s)
+| multi_step: forall sig0 sig sig' phi0 phi phi' s0 s s',
+    multi_Sstep (sig0, phi0, s0) (sig, phi, s) ->
+    Sstep (sig, phi, s) (sig', phi', s') ->
+    multi_Sstep (sig0, phi0, s0) (sig', phi', s')
+| multi_merge: forall sig0 sig sig' phi0 phi phi' s0 s b,
+    multi_Sstep (sig0, phi0, s0) (sig, phi, s) ->
+    multi_Sstep (sig0, phi0, s0) (sig', phi', s) ->
+    separates phi phi' b ->
+    multi_Sstep (sig0, phi0, s0) (merge_sub b sig sig', <{phi | phi'}>, s).
+
 Notation " c '->*' c'" := (multi_Sstep c c') (at level 40).
-
-Lemma x_not_y: X <> Y. Admitted.
-
-Example merge_sub_ex: merge_sub (BLeq Y 1) (Y !-> 2 ; X !-> 1 ; id_sub) (X !-> 4 ; id_sub)
-                      = (X !-> AIte (BLeq Y 1) 1 4 ; Y !-> AIte (BLeq Y 1) 2 Y ; merge_sub (BLeq Y 1) id_sub id_sub).
-Proof.
-  extensionality x. unfold merge_sub, update.
-  destruct (String.eqb_spec X x), (String.eqb_spec Y x).
-    - rewrite <- e0 in e. apply x_not_y in e. contradiction.
-    - reflexivity.
-    - rewrite e. reflexivity.
-    - reflexivity.
-Qed.
-
-Example if_merge_example:
-  (id_sub, BTrue, <{if (Y <= 1) {X := 1 ; Y := 2} {X := 4} ; Z := 3}>) ->*
-    ((X !-> AIte (BLeq Y 1) 1 4 ; Y !-> AIte (BLeq Y 1) 2 Y ; merge_sub (BLeq Y 1) id_sub id_sub),
-      <{Y <= 1 | ~ (Y <= 1)}>,
-      <{Z := 3}>).
-Proof.
-  econstructor.
-  - apply ctx_red_intro with (C := fun x => x).
-    + rewrite <- merge_sub_ex.
-      apply SMerge_step.
-      split; intro.
-      * assumption.
-      * apply negb_true_iff in H. apply H.
-    + constructor.
-      (* and we don't care about teh rest rn *)
-Admitted.
 
 Inductive head_red__C: relation (Valuation * Stmt) :=
 | CAsgn_step: forall x e V,
@@ -140,17 +118,17 @@ Theorem correctness : forall s s' sig phi V,
 Proof.
   intros. dependent induction H.
   - exists V, BTrue. splits. constructor.
-  - dependent destruction H. destruct x as [sig0 phi0]. dependent destruction H.
+  - dependent destruction H0. dependent destruction H0.
 
-    + destruct (IHclos_refl_trans_n1 _ _ _ _ JMeq_refl eq_refl) as (V' & phi' & ? & ? & ?).
+    + destruct (IHmulti_Sstep _ _ _ _ JMeq_refl eq_refl) as (V' & phi' & ? & ? & ?).
       eexists. eexists. splits.
       * econstructor.
       -- constructor.
         ++ rewrite asgn_sound. constructor.
         ++  assumption.
-      -- rewrite <- H. apply H3. rewrite <- H2. apply H4.
+      -- rewrite <- H0. apply H3. rewrite <- H2. apply H4.
 
-    + destruct (IHclos_refl_trans_n1 _ _ _ _ JMeq_refl eq_refl) as (V' & phi' & ? & ? & ?).
+    + destruct (IHmulti_Sstep _ _ _ _ JMeq_refl eq_refl) as (V' & phi' & ? & ? & ?).
       eexists. eexists. splits.
       * intro Hpc. simpl in Hpc; apply andb_true_iff in Hpc; destruct Hpc as [Hpc1 Hpc2];
           rewrite <- comp_subB in Hpc2.
@@ -158,9 +136,9 @@ Proof.
        -- constructor.
           ++ apply CIfTrue_step. apply Hpc2.
           ++ assumption.
-       -- rewrite <- H. apply H3. rewrite <- H2. apply Hpc1.
+       -- rewrite <- H0. apply H3. rewrite <- H2. apply Hpc1.
 
-    + destruct (IHclos_refl_trans_n1 _ _ _ _ JMeq_refl eq_refl) as (V' & phi' & ? & ? & ?).
+    + destruct (IHmulti_Sstep _ _ _ _ JMeq_refl eq_refl) as (V' & phi' & ? & ? & ?).
       eexists. eexists. splits.
       * intro Hpc. simpl in Hpc; apply andb_true_iff in Hpc; destruct Hpc as [Hpc1 Hpc2];
           rewrite <- comp_subB, negb_true_iff in Hpc2.
@@ -168,9 +146,9 @@ Proof.
        -- constructor.
           ++ apply CIfFalse_step. apply Hpc2.
           ++ assumption.
-       -- rewrite <- H. apply H3. rewrite <- H2. apply Hpc1.
+       -- rewrite <- H0. apply H3. rewrite <- H2. apply Hpc1.
 
-    + destruct (IHclos_refl_trans_n1 _ _ _ _ JMeq_refl eq_refl) as (V' & phi' & ? & ? & ?).
+    + destruct (IHmulti_Sstep _ _ _ _ JMeq_refl eq_refl) as (V' & phi' & ? & ? & ?).
       eexists. eexists. splits.
       * intro Hpc. simpl in Hpc; apply andb_true_iff in Hpc; destruct Hpc as [Hpc1 Hpc2];
           rewrite <- comp_subB in Hpc2.
@@ -178,9 +156,9 @@ Proof.
        -- constructor.
           ++ apply CWhileTrue_step. apply Hpc2.
           ++ assumption.
-       -- rewrite <- H. apply H3. rewrite <- H2. apply Hpc1.
+       -- rewrite <- H0. apply H3. rewrite <- H2. apply Hpc1.
 
-    + destruct (IHclos_refl_trans_n1 _ _ _ _ JMeq_refl eq_refl) as (V' & phi' & ? & ? & ?).
+    + destruct (IHmulti_Sstep _ _ _ _ JMeq_refl eq_refl) as (V' & phi' & ? & ? & ?).
       eexists. eexists. splits.
       * intro Hpc. simpl in Hpc; apply andb_true_iff in Hpc; destruct Hpc as [Hpc1 Hpc2];
           rewrite <- comp_subB, negb_true_iff in Hpc2.
@@ -188,42 +166,53 @@ Proof.
        -- constructor.
           ++ apply CWhileFalse_step. apply Hpc2.
           ++ assumption.
-       -- rewrite <- H. apply H3. rewrite <- H2. apply Hpc1.
+       -- rewrite <- H0. apply H3. rewrite <- H2. apply Hpc1.
 
-    + destruct (IHclos_refl_trans_n1 _ _ _ _ JMeq_refl eq_refl) as (V' & phi' & ? & ? & ?).
+    + destruct (IHmulti_Sstep _ _ _ _ JMeq_refl eq_refl) as (V' & phi' & ? & ? & ?).
       eexists. eexists. splits.
       * econstructor.
         -- constructor.
            ++ apply CSeq_skip.
            ++ assumption.
-        -- rewrite <- H. apply H3. rewrite <- H2. apply H4.
+        -- rewrite <- H0. apply H3. rewrite <- H2. apply H4.
 
-    + destruct (IHclos_refl_trans_n1 _ _ _ _ JMeq_refl eq_refl) as (V' & phi' & ? & ? & ?).
+    + destruct (IHmulti_Sstep _ _ _ _ JMeq_refl eq_refl) as (V' & phi' & ? & ? & ?).
       eexists. eexists. splits.
       * econstructor.
         -- constructor.
            ++ apply CPar_left_skip.
            ++ assumption.
-        -- rewrite <- H. apply H3. rewrite <- H2. apply H4.
+        -- rewrite <- H0. apply H3. rewrite <- H2. apply H4.
 
-    + destruct (IHclos_refl_trans_n1 _ _ _ _ JMeq_refl eq_refl) as (V' & phi' & ? & ? & ?).
+    + destruct (IHmulti_Sstep _ _ _ _ JMeq_refl eq_refl) as (V' & phi' & ? & ? & ?).
       eexists. eexists. splits.
       * econstructor.
         -- constructor.
            ++ apply CPar_right_skip.
            ++ assumption.
-        -- rewrite <- H. apply H3. rewrite <- H2. apply H4.
-
-    + destruct (IHclos_refl_trans_n1 _ _ _ _ JMeq_refl eq_refl) as (V' & phi0' & ? & ? & ?).
-      eexists. eexists. splits.
-      * intro. simpl in H5. apply orb_true_iff in H5.
-        destruct (H V), H5.
-        -- specialize (H6 H5).
-           rewrite (merge_sub_true _ _ _ _ H6), <- H2.
-           apply H4. rewrite <- H3. apply H5.
-        -- specialize (H7 H5).
-           rewrite (merge_sub_false _ _ _ _ H7).
-           (* what more do we need to know about sig'? *)
+        -- rewrite <- H0. apply H3. rewrite <- H2. apply H4.
+  - destruct (IHmulti_Sstep1 _ _ _ _ JMeq_refl eq_refl) as (V1' & phi1' & ? & ? & ?).
+    destruct (IHmulti_Sstep2 _ _ _ _ JMeq_refl eq_refl) as (V' & phi'' & ? & ? & ?).
+    eexists. eexists. splits.
+    + intro Hpc. simpl in Hpc. apply orb_true_iff in Hpc.
+      destruct Hpc.
+      * (* b separates so this is the b=true case *)
+        destruct (H1 V) as (? & _).
+        specialize (H9 H8).
+        rewrite merge_sub_true with (1 := H9).
+        (* and we have the computation from IH! *)
+        rewrite H3 in H8.
+        specialize (H4 H8).
+        rewrite <- H2.
+        apply H4.
+      * destruct (H1 V) as (_ & ?).
+        specialize (H9 H8).
+        rewrite merge_sub_false with (1 := H9).
+        (* and we have the computation from IH! *)
+        rewrite H6 in H8.
+        specialize (H7 H8).
+        rewrite <- H5.
+        apply H7.
 Qed.
 
 Theorem completeness : forall s s' V0 V,
@@ -231,35 +220,37 @@ Theorem completeness : forall s s' V0 V,
     exists sig phi, (id_sub, BTrue, s) ->* (sig, phi, s') /\ Beval V0 phi = true /\ V = Comp V0 sig.
 Proof.
   intros. dependent induction H.
-  - exists id_sub. exists BTrue. splits. constructor.
+  - exists id_sub, BTrue. splits. constructor.
   - dependent destruction H. dependent destruction H.
+
     + destruct (IHclos_refl_trans_n1 s (C <{x0 := e}>) V0 x) as [sig [phi [IHcomp [IHval IHupd]]]];
         try reflexivity.
       eexists. eexists. splits.
       * econstructor.
-        ** constructor; [apply SAsgn_step
-                        | assumption].
-        ** apply IHcomp.
+        -- apply IHcomp.
+        -- constructor.
+           ++ apply SAsgn_step.
+           ++ assumption.
       * assumption.
-      * rewrite asgn_sound. rewrite IHupd. reflexivity.
+      * rewrite asgn_sound, IHupd. reflexivity.
     + destruct (IHclos_refl_trans_n1 s (C <{if b {s'0}{s2}}>) V0 V) as [sig [phi [IHcomp [IHval IHupd]]]];
         try reflexivity.
       eexists. eexists. splits.
       * econstructor.
+        ** apply IHcomp.
         ** constructor; [apply SIfTrue_step
                         | assumption].
-        ** apply IHcomp.
       * simpl. apply andb_true_iff. split.
         ** assumption.
-        ** rewrite <- comp_subB. rewrite <- IHupd. assumption.
+        ** rewrite <- comp_subB, <- IHupd. assumption.
       * assumption.
     + destruct (IHclos_refl_trans_n1 s (C <{if b {s1}{s'0}}>) V0 V) as [sig [phi [IHcomp [IHval IHupd]]]];
         try reflexivity.
       eexists. eexists. splits.
       * econstructor.
+        ** apply IHcomp.
         ** constructor; [apply SIfFalse_step
                         | assumption].
-        ** apply IHcomp.
       * simpl. apply andb_true_iff. split.
         ** assumption.
         ** rewrite <- comp_subB. rewrite <- IHupd. apply negb_true_iff. assumption.
@@ -268,9 +259,9 @@ Proof.
         try reflexivity.
       eexists. eexists. splits.
       * econstructor.
+        ** apply IHcomp.
         ** constructor; [apply SWhileTrue_step
                         | assumption].
-        ** apply IHcomp.
       * simpl. apply andb_true_iff. split.
         ** assumption.
         ** rewrite <- comp_subB. rewrite <- IHupd. assumption.
@@ -279,9 +270,9 @@ Proof.
         try reflexivity.
       eexists. eexists. splits.
       * econstructor.
+        ** apply IHcomp.
         ** constructor; [apply SWhileFalse_step
                         | assumption].
-        ** apply IHcomp.
       * simpl. apply andb_true_iff. split.
         ** assumption.
         ** rewrite <- comp_subB. rewrite <- IHupd. apply negb_true_iff. assumption.
@@ -290,18 +281,57 @@ Proof.
         try reflexivity.
       exists sig. exists phi. splits; try assumption.
       econstructor.
-      * constructor; [apply SSeq_skip | assumption].
       *  apply IHcomp.
+      * constructor; [apply SSeq_skip | assumption].
     + destruct (IHclos_refl_trans_n1 s (C <{skip || s'0}>) V0 V) as [sig [phi [IHcomp [IHval IHupd]]]];
         try reflexivity.
       exists sig. exists phi. splits; try assumption.
       econstructor.
-      * constructor; [apply SPar_left_skip | assumption].
       *  apply IHcomp.
+      * constructor; [apply SPar_left_skip | assumption].
     + destruct (IHclos_refl_trans_n1 s (C <{s'0 || skip}>) V0 V) as [sig [phi [IHcomp [IHval IHupd]]]];
         try reflexivity.
       exists sig. exists phi. splits; try assumption.
       econstructor.
-      * constructor; [apply SPar_right_skip | assumption].
       *  apply IHcomp.
+      * constructor; [apply SPar_right_skip | assumption].
 Qed.
+
+(** an example (from Dominique) *)
+
+Fact x_not_y: X <> Y.
+Proof. apply String.eqb_neq. trivial. Qed.
+
+Example merge_sub_ex: merge_sub (BLeq Y 1) (Y !-> 2 ; X !-> 1 ; id_sub) (X !-> 4 ; id_sub)
+                      = (X !-> AIte (BLeq Y 1) 1 4 ; Y !-> AIte (BLeq Y 1) 2 Y ; merge_sub (BLeq Y 1) id_sub id_sub).
+Proof.
+  extensionality x. unfold merge_sub, update.
+  destruct (String.eqb_spec X x), (String.eqb_spec Y x).
+    - rewrite <- e0 in e. apply x_not_y in e. contradiction.
+    - reflexivity.
+    - rewrite e. reflexivity.
+    - reflexivity.
+Qed.
+
+Example s0 : Stmt :=<{ if Y <= 1 {X := 1; Y := 2}{X := 4}; Z := 3 }>.
+Example if_merge_example:
+  (id_sub, BTrue, s0) ->* (Y !-> 2; X !-> 1; id_sub, <{ Y <= 1 }>, <{ Z := 3 }>)
+  -> (id_sub, BTrue, s0) ->* (X !-> 4; id_sub, <{ ~ Y <= 1 }>, <{ Z := 3 }>) ->
+  (id_sub, BTrue, s0) ->*
+    ((X !-> AIte (BLeq Y 1) 1 4 ; Y !-> AIte (BLeq Y 1) 2 Y ; merge_sub (BLeq Y 1) id_sub id_sub),
+      <{Y <= 1 | ~ (Y <= 1)}>,
+      <{Z := 3}>).
+Proof.
+  intros. rewrite <- merge_sub_ex.
+  eapply multi_merge.
+  - assumption.
+  - assumption.
+  - split; intro.
+    + easy.
+    + apply negb_true_iff in H1. apply H1.
+Qed.
+
+(* huh, this worked surprisingly smoothly *)
+(* what about traces? *)
+(* seems a lot like allowing equivalent t, but updating pc somehow *)
+(* uh-oh what happens to calculated path condition and its monotonicity? *)
