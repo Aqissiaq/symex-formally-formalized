@@ -331,7 +331,12 @@ Proof.
     + apply negb_true_iff in H1. apply H1.
 Qed.
 
-(* huh, this worked surprisingly smoothly *)
-(* what about traces? *)
+(* huh, this worked surprisingly smoothly, what's next? *)
+
+(* traces? *)
 (* seems a lot like allowing equivalent t, but updating pc somehow *)
 (* uh-oh what happens to calculated path condition and its monotonicity? *)
+
+(* generalizations *)
+(* I don't want a new induction scheme for every merge strategy *)
+(* this seems orthogonal to the traces, and I don't love the idea of doing both at the same time *)
