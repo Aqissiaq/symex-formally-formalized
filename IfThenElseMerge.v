@@ -67,37 +67,31 @@ Proof.
   - specialize (BasicContextReduction.correctness _ _ _ _ V H);
       intro basic_correct.
     exists (Comp V sig), phi. splits. apply basic_correct.
-  - destruct (IHite_merge1 _ _ _ _ JMeq_refl eq_refl) as (V1' & phi1' & ? & ? & ?).
-    destruct (IHite_merge2 _ _ _ _ JMeq_refl eq_refl) as (V' & phi'' & ? & ? & ?).
-    eexists. eexists. splits.
-    + intro Hpc. simpl in Hpc. apply orb_true_iff in Hpc.
-      destruct Hpc.
-      * (* b separates so this is the b=true case *)
-        destruct (H1 V) as (? & _).
-        specialize (H9 H8).
-        rewrite merge_sub_true with (1 := H9).
-        (* and we have the computation from IH! *)
-        rewrite H3 in H8.
-        specialize (H4 H8).
-        rewrite <- H2.
-        apply H4.
-      * destruct (H1 V) as (_ & ?).
-        specialize (H9 H8).
-        rewrite merge_sub_false with (1 := H9).
-        rewrite H6 in H8.
-        specialize (H7 H8).
-        rewrite <- H5.
-        apply H7.
+  - destruct (IHite_merge1 _ _ _ _ JMeq_refl eq_refl) as (V1' & phi1' & AbsV1' & pc_equiv1' & Comp1').
+    destruct (IHite_merge2 _ _ _ _ JMeq_refl eq_refl) as (V' & phi'' & Abs' & pc_equiv' & Comp').
+    exists (Comp V (merge_sub b sig1 sig')).
+    exists <{phi1 | phi' }>. splits.
+    simpl. intro Hpc. apply orb_true_iff in Hpc.
+    destruct Hpc as [phi1_true | phi'_true].
+    + (* b separates so this is the b=true case *)
+      destruct (H1 V) as (b_true & _).
+      rewrite merge_sub_true with (1 := (b_true phi1_true)).
+      (* and we have the computation from IH! *)
+      rewrite <- AbsV1'.
+      rewrite pc_equiv1' in phi1_true.
+      apply (Comp1' phi1_true).
+    + destruct (H1 V) as (_ & b_false).
+      rewrite merge_sub_false with (1 := (b_false phi'_true)).
+      rewrite <- Abs'.
+      rewrite pc_equiv' in phi'_true.
+      apply (Comp' phi'_true).
 Qed.
 
 Theorem completeness : forall s s' V0 V,
     (V0, s) =>* (V, s') ->
     exists sig phi, (id_sub, BTrue, s) ->* (sig, phi, s') /\ Beval V0 phi = true /\ V = Comp V0 sig.
 Proof.
-  intros.
-  destruct (BasicContextReduction.completeness _ _ _ _ H) as
-    (sig & phi & basic_complete).
-  exists sig, phi. apply basic_complete.
+  apply BasicContextReduction.completeness.
 Qed.
 
 (** an example (from Dominique) *)
