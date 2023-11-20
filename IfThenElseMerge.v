@@ -87,12 +87,28 @@ Proof.
       apply (Comp' phi'_true).
 Qed.
 
+(* generalizing this last argument: *)
+(*   goal: if the merged pc holds, then there is a concrete computation reaching the merged state *)
+
+(* in the if-then-else case: split on b since it separates, *)
+(*   then use the characterization of merge_sub and induction hypotheses *)
+
+(* in general: pair of states satisfy a merge condition and we have IH(s)
+  ==> resulting state is correct *)
+
 Theorem completeness : forall s s' V0 V,
     (V0, s) =>* (V, s') ->
-    exists sig phi, (id_sub, BTrue, s) ->* (sig, phi, s') /\ Beval V0 phi = true /\ V = Comp V0 sig.
+    exists sig phi, (id_sub, BTrue, s) ->ite (sig, phi, s') /\ Beval V0 phi = true /\ V = Comp V0 sig.
 Proof.
-  apply BasicContextReduction.completeness.
+  intros.
+  destruct BasicContextReduction.completeness with (1:=H) as
+    (sig & phi & Hrt & ? & ?).
+  exists sig, phi. splits;
+    try assumption.
+  apply ite_merge_rt with (1:=Hrt).
 Qed.
+(* one potential problem of this approach: *)
+(* since we are extending a complete semantics, we cannot define incomplete merge strats *)
 
 (** an example (from Dominique) *)
 
