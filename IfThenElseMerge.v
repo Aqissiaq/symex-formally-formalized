@@ -57,19 +57,17 @@ Definition pc_equiv (b1 b2: Bexpr): Prop := forall V, Beval V b1 = Beval V b2.
 
 Theorem correctness : forall s s' sig phi V,
     (id_sub, BTrue, s) ->ite (sig, phi, s') ->
-    exists V' phi',
-      V' = (Comp V sig)
-      /\ pc_equiv phi phi'
+    exists phi',
+      pc_equiv phi phi'
       /\ (Beval V phi' = true ->
-         (V, s) =>* (V', s')).
+         (V, s) =>* (Comp V sig, s')).
 Proof.
   intros. dependent induction H.
   - specialize (BasicContextReduction.correctness _ _ _ _ V H);
       intro basic_correct.
-    exists (Comp V sig), phi. splits. apply basic_correct.
-  - destruct (IHite_merge1 _ _ _ _ JMeq_refl eq_refl) as (V1' & phi1' & AbsV1' & pc_equiv1' & Comp1').
-    destruct (IHite_merge2 _ _ _ _ JMeq_refl eq_refl) as (V' & phi'' & Abs' & pc_equiv' & Comp').
-    exists (Comp V (merge_sub b sig1 sig')).
+    exists phi. splits. apply basic_correct.
+  - destruct (IHite_merge1 _ _ _ _ JMeq_refl eq_refl) as (phi1' & pc_equiv1' & Comp1').
+    destruct (IHite_merge2 _ _ _ _ JMeq_refl eq_refl) as (phi'' & pc_equiv' & Comp').
     exists <{phi1 | phi' }>. splits.
     simpl. intro Hpc. apply orb_true_iff in Hpc.
     destruct Hpc as [phi1_true | phi'_true].
@@ -77,12 +75,10 @@ Proof.
       destruct (H1 V) as (b_true & _).
       rewrite merge_sub_true with (1 := (b_true phi1_true)).
       (* and we have the computation from IH! *)
-      rewrite <- AbsV1'.
       rewrite pc_equiv1' in phi1_true.
       apply (Comp1' phi1_true).
     + destruct (H1 V) as (_ & b_false).
       rewrite merge_sub_false with (1 := (b_false phi'_true)).
-      rewrite <- Abs'.
       rewrite pc_equiv' in phi'_true.
       apply (Comp' phi'_true).
 Qed.
@@ -96,9 +92,13 @@ Qed.
 (* in general: pair of states satisfy a merge condition and we have IH(s)
   ==> resulting state is correct *)
 
+Definition abstracts (V0: Valuation) (sig: sub) (phi: Bexpr) (V:Valuation): Prop :=
+  Beval V0 phi = true /\ V = Comp V0 sig.
+
 Theorem completeness : forall s s' V0 V,
     (V0, s) =>* (V, s') ->
-    exists sig phi, (id_sub, BTrue, s) ->ite (sig, phi, s') /\ Beval V0 phi = true /\ V = Comp V0 sig.
+    exists sig phi, (id_sub, BTrue, s) ->ite (sig, phi, s')
+             /\ abstracts V0 sig phi V.
 Proof.
   intros.
   destruct BasicContextReduction.completeness with (1:=H) as
@@ -109,6 +109,29 @@ Proof.
 Qed.
 (* one potential problem of this approach: *)
 (* since we are extending a complete semantics, we cannot define incomplete merge strats *)
+
+(* solution? enforce that a merge-step is actually taken *)
+(* problem: c ->ite c' -> Prop is a universe inconsistency... *)
+
+(* temporary solution: the merge in isolation *)
+Lemma merge_exhaustive: forall V0 b sig sig' phi phi' V V',
+    abstracts V0 sig phi V ->
+    abstracts V0 sig' phi' V' ->
+    separates phi phi' b ->
+    abstracts V0 (merge_sub b sig sig') <{phi | phi'}> V
+    /\ abstracts V0 (merge_sub b sig sig') <{phi | phi'}> V'.
+Proof.
+  intros.
+  destruct H, H0, (H1 V0).
+  specialize (H4 H). specialize (H5 H0).
+  split; simpl.
+  - split.
+    + apply orb_true_iff. left; assumption.
+    + rewrite merge_sub_true; assumption.
+  - split.
+    + apply orb_true_iff. right; assumption.
+    + rewrite merge_sub_false; assumption.
+Qed.
 
 (** an example (from Dominique) *)
 

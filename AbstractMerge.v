@@ -14,24 +14,40 @@ Import BasicMaps.
 
 From SymEx Require Import Parallel.
 
-From SymEx Require Import ContextReduction.
-
 Section AbstractMerge.
-  Variable concStep: relation (Valuation * Stmt).
-  Variable symbStep: relation (sub * Bexpr * Stmt).
+  Parameter concStar: relation (Valuation * Stmt).
+  Parameter symbStar: relation (sub * Bexpr * Stmt).
+
+  Parameter symbStar_correct: forall s s' sig phi V,
+      symbStar (id_sub, BTrue, s) (sig, phi, s') ->
+      Beval V phi = true ->
+      concStar (V, s) (Comp V sig, s').
+
+  Parameter symbStar_complete: forall s s' V0 V,
+      concStar (V0, s) (V, s') ->
+      exists sig phi, symbStar (id_sub, BTrue, s) (sig, phi, s')
+                 /\ Beval V0 phi = true
+                 /\ V = Comp V0 sig.
 
   (* for if-then-else we actually need more stuff here *)
   (* specifically b *)
-  Variable mergeStates: sub -> sub -> sub.
-  Variable mergePCs: Bexpr -> Bexpr -> Bexpr.
+  Parameter merge: (sub * Bexpr) -> (sub * Bexpr) -> (sub * Bexpr).
+  Parameter mergeAllowed: (sub * Bexpr) -> (sub * Bexpr) -> bool.
 
-  Variable mergeAllowed: (sub * Bexpr) -> (sub * Bexpr) -> Prop.
+  Definition pc_weaker (b1 b2: Bexpr): Prop := forall V, Beval V b1 = true -> Beval V b2 = true.
+  Definition abstracts (V0: Valuation) (sig: sub) (V:Valuation): Prop := V = Comp V0 sig.
 
-  Definition mergeSound: (sub -> sub -> sub) ->
-                         (Bexpr -> Bexpr -> Bexpr) ->
-                         ((sub * Bexpr) -> (sub * Bexpr) -> Prop)
-                         -> Prop.
-  Admitted. (* figure out what this has to be *)
+  Definition mergeSound: ((sub * Bexpr) -> (sub * Bexpr) -> (sub * Bexpr)) ->
+                         ((sub * Bexpr) -> (sub * Bexpr) -> bool)
+                         -> Prop :=
+    fun merge allowed => forall V0 V V' sig phi sig' phi',
+        allowed (sig, phi) (sig', phi') = true ->
+        abstracts V0 sig V ->
+        abstracts V0 sig' V' ->
+        let (sig_merged, phi_merged) := merge (sig, phi) (sig', phi') in
+        pc_weaker phi_merged phi /\ pc_weaker phi_merged phi' /\
+          abstracts V0 sig_merged V /\ abstracts V0 sig_merged V'.
+
   (*
     we could make a very strict and obvious choice:
     if mergeAllowed, then the result is correct
@@ -51,41 +67,39 @@ Section AbstractMerge.
 maybe this is an avenue for Arthur-style bug-search
    *)
 
-  Variable mergeIsSound: mergeSound mergeStates mergePCs mergeAllowed.
+  Inductive symb_merge: relation (sub * Bexpr * Stmt) :=
+  | symb_merge_rt: forall sig0 sig phi0 phi s0 s,
+      symbStar (sig0, phi0, s0) (sig, phi, s) ->
+      symb_merge (sig0, phi0, s0) (sig, phi, s)
+  | symb_merge_merge: forall sig0 sig sig' phi0 phi phi' s0 s,
+      symb_merge (sig0, phi0, s0) (sig, phi, s) ->
+      symb_merge (sig0, phi0, s0) (sig', phi', s) ->
+      mergeAllowed (sig, phi) (sig', phi') = true ->
+      symb_merge (sig0, phi0, s0) (merge (sig, phi) (sig', phi'), s).
 
-  Definition concStar := clos_refl_trans_n1 _ concStep.
-
-  Notation " c '->s' c'" := (symbStep c c') (at level 40).
-  Notation " c '=>c' c'" := (concStep c c') (at level 40).
+  Notation " c '->m' c'" := (symb_merge c c') (at level 40).
   Notation " c '=>*' c'" := (concStar c c') (at level 40).
 
-  Inductive symbStar: relation (sub * Bexpr * Stmt) :=
-  | multi_refl: forall sig phi s, symbStar (sig, phi, s) (sig, phi, s)
-  | multi_step: forall sig0 sig sig' phi0 phi phi' s0 s s',
-      symbStar (sig0, phi0, s0) (sig, phi, s) ->
-      symbStep (sig, phi, s) (sig', phi', s') ->
-      symbStar (sig0, phi0, s0) (sig', phi', s')
-  | multi_merge: forall sig0 sig sig' phi0 phi phi' s0 s,
-      symbStar (sig0, phi0, s0) (sig, phi, s) ->
-      symbStar (sig0, phi0, s0) (sig', phi', s) ->
-      mergeAllowed (sig, phi) (sig', phi') ->
-      symbStar (sig0, phi0, s0) (mergeStates sig sig', mergePCs phi phi', s).
-
-  (* this is an abuse of notation, since it's more than the refl/trans closure *)
-  (* maybe use \ast or the name of the merge strat. *)
-  Notation " c '->*' c'" := (symbStar c c') (at level 40).
-
-  Theorem correctness : forall s s' sig phi V,
-      (id_sub, BTrue, s) ->* (sig, phi, s') ->
-      exists V' phi',
-        V' = (Comp V sig)
-        /\ (forall V, Beval V phi = Beval V phi')
-        /\ (Beval V phi' = true -> (V, s) =>* (V', s')).
+  Theorem correctness (mSound: mergeSound merge mergeAllowed) :
+    forall s s' sig phi V,
+      (id_sub, BTrue, s) ->m (sig, phi, s') ->
+      Beval V phi = true ->
+      (V, s) =>* (Comp V sig, s').
   Proof.
     intros. dependent induction H.
-    (* assume this holds for refl/trans closure *)
-    - admit.
-    - admit.
+    - apply (symbStar_correct s s' sig phi V H H0).
     (* the interesting merge case *)
-    - destruct (IHsymbStar1 mergeIsSound _ _ _ _ JMeq_refl eq_refl) as (V1' & phi1' & ? & ? & ?).
-      destruct (IHsymbStar2 mergeIsSound _ _ _ _ JMeq_refl eq_refl) as (V' & phi'' & ? & ? & ?).
+    - specialize (IHsymb_merge1 _ _ _ _ JMeq_refl eq_refl).
+      (* specialize (IHsymb_merge2 _ _ _ _ JMeq_refl eq_refl). *)
+      assert (abstracts V sig1 (Comp V sig1)) by easy.
+      assert (abstracts V sig' (Comp V sig')) by easy.
+      specialize (mSound V (Comp V sig1) (Comp V sig') sig1 phi1 sig' phi' H1 H3 H4).
+      rewrite x in mSound. destruct mSound as (? & ? & ? & ?).
+      rewrite <- H7. apply IHsymb_merge1.
+      apply H5. assumption.
+  Qed.
+  (* mergeSound is a bit ad-hoc, and I don't like the assymmetry of considering only one branch *)
+End AbstractMerge.
+
+From SymEx Require Import IfThenElseMerge.
+(* ite as an instance of this abstract merge? *)
