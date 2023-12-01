@@ -30,7 +30,8 @@ Section AbstractMerge.
                  /\ V = Comp V0 sig.
 
   (* for if-then-else we actually need more stuff here *)
-  (* specifically b *)
+  (* specifically b
+   – but maybe not, assuming that b can be derived from phi, phi' by Lyndon interpolation *)
   Parameter merge: (sub * Bexpr) -> (sub * Bexpr) -> (sub * Bexpr).
   Parameter mergeAllowed: (sub * Bexpr) -> (sub * Bexpr) -> bool.
 
@@ -93,13 +94,85 @@ maybe this is an avenue for Arthur-style bug-search
       (* specialize (IHsymb_merge2 _ _ _ _ JMeq_refl eq_refl). *)
       assert (abstracts V sig1 (Comp V sig1)) by easy.
       assert (abstracts V sig' (Comp V sig')) by easy.
-      specialize (mSound V (Comp V sig1) (Comp V sig') sig1 phi1 sig' phi' H1 H3 H4).
+      specialize (mSound V (Comp V sig1) (Comp V sig') sig1 phi1 sig' phi' H2 H3).
       rewrite x in mSound. destruct mSound as (? & ? & ? & ?).
-      rewrite <- H7. apply IHsymb_merge1.
-      apply H5. assumption.
+      rewrite <- H6. apply H4 in H1.
+      apply (IHsymb_merge1 H1).
   Qed.
   (* mergeSound is a bit ad-hoc, and I don't like the assymmetry of considering only one branch *)
+  (* merge_exhaustive is actually just merge_sound?*)
 End AbstractMerge.
 
 From SymEx Require Import IfThenElseMerge.
+From SymEx Require Import BasicContextReduction.
 (* ite as an instance of this abstract merge? *)
+
+Notation " V '|=' b" := (Beval V b = true) (at level 40).
+Notation " V '|/=' b" := (Beval V b = false) (at level 40).
+Notation " '|=' b" := (forall V, V |= b) (at level 40).
+
+Definition separable (p1 p2: Bexpr): Prop := |= <{~ (p1 && p2)}>.
+
+Theorem interpolation: forall phi1 phi2,
+    ~ (|= <{phi1 && phi2}>) -> {psi |
+      (forall V, V |= phi1 -> V |= psi)
+      /\ (forall V, V |= phi2 -> V |/= psi)}.
+Admitted.
+
+Lemma separable_dec: forall phi phi',
+    {separable phi phi'} + {~ separable phi phi'}.
+Admitted.
+
+Lemma separable_unsat: forall phi phi',
+    separable phi phi' -> ~ (|= <{phi && phi'}>).
+Proof.
+  (* consider an arbitrary valuation… *)
+  set (V := (_ !-> 42)).
+  intros phi phi' Hsep Hsat.
+  specialize (Hsat V). specialize (Hsep V).
+  rewrite <- Hsep in Hsat.
+  simpl in Hsat.
+  destruct (Beval V phi), (Beval V phi'); simpl in Hsat;
+    discriminate.
+Qed.
+
+Corollary separating: forall phi phi',
+    separable phi phi' <->
+    exists b, separates phi phi' b.
+Proof.
+  split; intros.
+  - assert (union_unsat: ~ (|= <{phi && phi'}>))
+      by (apply (separable_unsat _ _ H)).
+    destruct (interpolation _ _ union_unsat) as (psi & ? & ?).
+    exists psi. split;
+      [apply H0 | apply H1].
+  - intro. destruct H as (psi & ? & ?).
+    simpl. apply negb_true_iff. apply andb_false_iff.
+    destruct (Beval V phi) eqn:?.
+    + destruct (Beval V phi') eqn:?.
+      *  apply H in Heqb. apply H0 in Heqb0.
+         rewrite Heqb in Heqb0. discriminate.
+      * right; easy.
+    + left; easy.
+Qed.
+
+Corollary separator: forall phi phi',
+    separable phi phi' -> { b:Bexpr | separates phi phi' b }.
+Proof.
+  intros.
+  assert (union_unsat: ~ (|= <{phi && phi'}>))
+      by (apply (separable_unsat _ _ H)).
+    destruct (interpolation _ _ union_unsat) as (psi & ? & ?).
+    exists psi. split;
+      [apply H0 | apply H1].
+Qed.
+
+Definition ite_merge: (sub * Bexpr) -> (sub * Bexpr) -> (sub * Bexpr).
+Proof.
+  intros (sig, phi) (sig', phi').
+  destruct (separable_dec phi phi').
+  - apply separator in s.
+    destruct s as (b & b_sep).
+    exact (merge_sub b sig sig', <{phi | phi'}>).
+  - exact (sig, phi).
+Defined.
