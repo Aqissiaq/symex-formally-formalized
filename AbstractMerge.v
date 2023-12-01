@@ -94,10 +94,11 @@ maybe this is an avenue for Arthur-style bug-search
       (* specialize (IHsymb_merge2 _ _ _ _ JMeq_refl eq_refl). *)
       assert (abstracts V sig1 (Comp V sig1)) by easy.
       assert (abstracts V sig' (Comp V sig')) by easy.
-      specialize (mSound V (Comp V sig1) (Comp V sig') sig1 phi1 sig' phi' H2 H3).
+      specialize (mSound V (Comp V sig1) (Comp V sig') sig1 phi1 sig' phi' H1 H3 H4).
       rewrite x in mSound. destruct mSound as (? & ? & ? & ?).
-      rewrite <- H6. apply H4 in H1.
-      apply (IHsymb_merge1 H1).
+      rewrite <- H7.
+      apply H5 in H2.
+      apply (IHsymb_merge1 H2).
   Qed.
   (* mergeSound is a bit ad-hoc, and I don't like the assymmetry of considering only one branch *)
   (* merge_exhaustive is actually just merge_sound?*)
@@ -168,11 +169,17 @@ Proof.
 Qed.
 
 Definition ite_merge: (sub * Bexpr) -> (sub * Bexpr) -> (sub * Bexpr).
-Proof.
   intros (sig, phi) (sig', phi').
   destruct (separable_dec phi phi').
   - apply separator in s.
     destruct s as (b & b_sep).
     exact (merge_sub b sig sig', <{phi | phi'}>).
   - exact (sig, phi).
+Defined.
+
+Definition ite_merge_allowed: (sub * Bexpr) -> (sub * Bexpr) -> bool.
+  intros (sig, phi) (sig', phi').
+  destruct (separable_dec phi phi').
+  + exact true.
+  + exact false.
 Defined.
